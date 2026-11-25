@@ -6,3 +6,23 @@
   from = "/"
   to = "/index_kr.html"
   status = 200
+
+# 실시간 데모 페이지. 추론 서버로 가는 요청은 방문자의 브라우저가 직접 보낸다.
+# (Netlify를 거치는 프록시 규칙은 두지 않는다. 판독문이 이 호스팅을 지나가지 않게 하기 위해서다.)
+[[redirects]]
+  from = "/demo"
+  to = "/demo.html"
+  status = 200
+
+# 추론 서버용 코드는 사이트로 내보내지 않는다
+[[redirects]]
+  from = "/server/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[headers]]
+  for = "/demo*"
+  [headers.values]
+    Referrer-Policy = "no-referrer"
+    X-Robots-Tag = "noindex"

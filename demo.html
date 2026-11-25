@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>실시간 ICD-10-CM 코드 제안</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* 배치: 위에 연결 상태, 왼쪽에 판독문 입력, 오른쪽에 모델이 제안한 코드 */
+:root {
+  --bg: #f1f4f3;
+  --surface: #ffffff;
+  --ink: #17211f;
+  --muted: #586764;
+  --line: #d3dbd8;
+  --chip: #e6edea;
+  --accent: #0b6a60;
+  --accent-ink: #ffffff;
+  --ok: #1c7340;
+  --ok-bg: #e2f2e7;
+  --no: #a3302a;
+  --no-bg: #f8e5e3;
+  --warn: #7d5200;
+  --warn-bg: #fbefd0;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111615; --surface: #1a2120; --ink: #e5ebe9; --muted: #9aa8a4; --line: #2d3836; --chip: #232d2b;
+    --accent: #56c7b7; --accent-ink: #06211d;
+    --ok: #72d398; --ok-bg: #163423; --no: #f08c84; --no-bg: #3a1c1a; --warn: #f0c56c; --warn-bg: #3a2e10;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111615; --surface: #1a2120; --ink: #e5ebe9; --muted: #9aa8a4; --line: #2d3836; --chip: #232d2b;
+  --accent: #56c7b7; --accent-ink: #06211d;
+  --ok: #72d398; --ok-bg: #163423; --no: #f08c84; --no-bg: #3a1c1a; --warn: #f0c56c; --warn-bg: #3a2e10;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.55; }
+.app {
+  max-width: 1280px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+h1, h2, p, ol, ul { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { display: flex; flex-direction: column; gap: 10px; }
+.top-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 15px; font-weight: 600; }
+.lede { color: var(--muted); max-width: 68ch; font-size: 14px; }
+.top-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.top-tools .divider { width: 1px; align-self: stretch; background: var(--line); }
+.nav-link { color: var(--accent); font-size: 13.5px; text-decoration: none; }
+.nav-link:hover { text-decoration: underline; }
+.lang-switch { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px; gap: 2px; }
+.lang-opt { border-radius: 4px; padding: 2px 9px; font-size: 12.5px; line-height: 1.6; color: var(--muted); text-decoration: none; }
+.lang-opt:hover { color: var(--ink); background: var(--chip); }
+.lang-opt[aria-current="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+
+.chip { display: inline-block; background: var(--chip); color: var(--muted); border-radius: 999px; padding: 1px 9px; font-size: 12.5px; white-space: nowrap; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); }
+.chip.no { background: var(--no-bg); color: var(--no); }
+.chip.warn { background: var(--warn-bg); color: var(--warn); }
+.btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 14px; font-size: 14px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.btn.link { border-color: transparent; background: transparent; color: var(--accent); padding-inline: 4px; }
+
+.ex-pick { display: flex; align-items: center; gap: 4px; }
+.ex-btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ex-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.status { display: flex; flex-direction: column; gap: 8px; }
+.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+.dot.ok { background: var(--ok); }
+.dot.no { background: var(--no); }
+.dot.warn { background: var(--warn); }
+#conn-chip { color: var(--ink); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.panel-head { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.src { font-size: 12.5px; color: var(--muted); }
+.panel-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+code { font-family: var(--font-mono); font-size: 12.5px; background: var(--chip); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.spacer { flex: 1 1 0; }
+.note { font-size: 13px; color: var(--muted); }
+.note.warn { color: var(--warn); }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+textarea#note {
+  width: 100%; min-height: 340px; resize: vertical; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; font-size: 14.5px; line-height: 1.65; font-family: var(--font-ui);
+}
+.count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count.over { color: var(--no); font-weight: 500; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px; gap: 2px; }
+.seg-opt { position: relative; }
+.seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.seg-opt span { display: block; border-radius: 4px; padding: 3px 10px; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.seg-opt input:checked + span { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.seg-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg-opt input:disabled + span { opacity: 0.55; cursor: not-allowed; }
+
+.empty { color: var(--muted); }
+.working { display: flex; flex-direction: column; gap: 10px; }
+.working-line { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--accent); animation: spin 0.9s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.elapsed { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 400; }
+.alert { background: var(--no-bg); color: var(--no); border: 1px solid var(--no); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.alert .hint { color: var(--ink); font-size: 13.5px; }
+.warnbox { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; }
+.codes { display: flex; flex-direction: column; gap: 8px; }
+.code-row { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.code-row.outside { background: var(--warn-bg); border-color: var(--warn); }
+.code { font-family: var(--font-mono); font-weight: 500; font-size: 16px; font-variant-numeric: tabular-nums; min-width: 6.2em; }
+.code-title { flex: 1 1 14ch; min-width: 0; overflow-wrap: anywhere; }
+.code-title.missing { color: var(--muted); }
+.result-meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.result-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.result-head b { font-weight: 600; }
+.foot { font-size: 12.5px; color: var(--muted); }
+
+@media (max-width: 860px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .fields { grid-template-columns: minmax(0, 1fr); }
+  textarea#note { min-height: 240px; }
+}
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="top-row">
+      <h1 data-i18n="title">실시간 데모</h1>
+      <div class="top-tools">
+        <div class="ex-pick" role="group" id="ex-buttons" aria-label="예시" data-i18n-label="examplesLabel"></div>
+        <span class="divider" aria-hidden="true"></span>
+        <a class="nav-link" id="back-link" href="/" data-i18n="back">예시 화면으로</a>
+        <span class="divider" aria-hidden="true"></span>
+        <nav class="lang-switch" aria-label="언어" data-i18n-label="langLabel">
+          <a class="lang-opt" href="/demo" hreflang="ko" lang="ko" data-lang="ko">한국어</a>
+          <a class="lang-opt" href="/demo?lang=en" hreflang="en" lang="en" data-lang="en">EN</a>
+        </nav>
+      </div>
+    </div>
+    <p class="lede" data-i18n="lede"></p>
+  </header>
+
+  <main class="cols">
+    <section class="panel" aria-labelledby="note-h">
+      <div class="panel-head">
+        <h2 id="note-h" data-i18n="noteTitle"></h2>
+        <p class="src" data-i18n="noteSub"></p>
+      </div>
+      <div class="panel-body">
+        <textarea id="note" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+          data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"
+          aria-labelledby="note-h" data-i18n-ph="notePlaceholder"></textarea>
+        <div class="row">
+          <button class="btn primary" id="run-btn" type="button" data-i18n="runBtn"></button>
+          <button class="btn" id="clear-btn" type="button" data-i18n="clearBtn"></button>
+          <div class="seg" role="radiogroup" id="modes" aria-label="실행 방식" data-i18n-label="modeLegend">
+            <label class="seg-opt"><input type="radio" name="mode" value="fast" checked><span data-i18n="modeFast"></span></label>
+            <label class="seg-opt"><input type="radio" name="mode" value="full"><span data-i18n="modeFull"></span></label>
+          </div>
+          <span class="spacer"></span>
+          <span class="count" id="count"></span>
+        </div>
+        <p class="note" id="mode-sub"></p>
+        <p class="note warn" id="run-reason" hidden></p>
+        <p class="note" data-i18n="privacy"></p>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="result-h">
+      <div class="panel-head">
+        <h2 id="result-h" data-i18n="resultTitle"></h2>
+        <p class="src" data-i18n="resultSub"></p>
+      </div>
+      <div class="panel-body" id="result" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer class="status" id="status">
+    <div class="status-line">
+      <span class="dot" id="conn-dot" aria-hidden="true"></span>
+      <span id="conn-chip" role="status" aria-live="polite"></span>
+    </div>
+  </footer>
+
+  <p class="foot" data-i18n="foot"></p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var TEXT = {
+    ko: {
+      pageTitle: '실시간 데모 · ICD-10-CM 코드',
+      title: '실시간 데모',
+      back: '예시 화면으로',
+      langLabel: '언어',
+      lede: '판독문을 붙여넣고 실행하면 모델이 132개 라벨 목록에서 ICD-10-CM 코드를 골라 공식 코드명과 함께 보여 줍니다.',
+      examplesLabel: '예시',
+      example: '예시 {n}',
+      reasonOff: '서버가 꺼져 있어 실행할 수 없습니다.',
+      reasonToken: '접근 권한이 없습니다. 서버가 알려 준 링크로 다시 열어 주세요.',
+      reasonOrigin: '서버가 이 페이지 주소를 허용해야 실행할 수 있습니다.',
+      reasonModel: '모델이 준비되면 실행할 수 있습니다.',
+      noteTitle: '판독문',
+      noteSub: '영문 판독문 한 건 · 예시 1~3은 지어낸 판독문입니다 · 식별 정보가 없는 글만 넣어 주세요',
+      notePlaceholder: '여기에 판독문을 붙여넣으세요.',
+      runBtn: '실행',
+      modeLegend: '실행 방식',
+      modeFast: '빠르게',
+      modeFastSub: '추론을 생략하고 바로 답합니다 · 몇 초',
+      modeFull: '실험과 같은 설정',
+      modeFullSub: '모델이 추론한 뒤 답합니다 · 보통 수십 초, 길면 2~3분',
+      runningFast: '모델이 코드를 고르는 중',
+      waitFast: '보통 몇 초 안에 끝납니다.',
+      metaReasoned: '추론 사용',
+      metaNoReasoning: '추론 생략',
+      fastFellBack: '서버의 모델이 추론 생략을 받아들이지 않아 추론을 사용했습니다.',
+      clearBtn: '지우기',
+      privacy: '판독문은 이 브라우저에서 추론 서버로 바로 전송되고, 이 페이지를 올려 둔 호스팅 서비스를 거치지 않습니다. 서버는 판독문과 모델 응답을 파일이나 로그에 남기지 않습니다.',
+      resultTitle: '모델이 제안한 코드',
+      resultSub: '모델의 제안이며 확정 코드가 아닙니다',
+      idle: '예시를 고르거나 판독문을 붙여넣고 실행을 누르면 여기에 코드와 공식 코드명이 나옵니다.',
+      count: '{n}자 / 최대 {max}자',
+      connChecking: '서버 확인 중',
+      connOk: '서버 켜짐',
+      connDown: '서버 꺼짐',
+      connToken: '서버 켜짐 · 접근 권한 없음',
+      connOrigin: '서버 켜짐 · 이 페이지는 허용되지 않음',
+      connNoModel: '서버 켜짐 · 모델 준비 중',
+      sending: '판독문을 보내는 중',
+      queued: '대기 중 · 앞에 {n}건',
+      running: '모델이 판독문을 읽고 코드를 고르는 중',
+      elapsed: '{s}초 경과',
+      wait: '모델이 추론한 뒤 답하므로 수십 초에서 2~3분이 걸릴 수 있습니다. 이 창을 닫으면 결과를 받을 수 없습니다.',
+      cancelBtn: '취소',
+      resultCount: '코드 {n}개',
+      resultNone: '모델이 코드를 제안하지 않았습니다.',
+      resultMeta: '모델 {model} · {s}초 · {reasoning} · 방식 {pipeline} (검색·추출 단계 없음)',
+      outside: '라벨 목록 밖',
+      noTitle: '132개 라벨 목록에 없는 코드라 공식 코드명을 표시할 수 없습니다.',
+      truncated: '모델 응답이 길이 제한에 닿았습니다. 목록이 불완전할 수 있습니다.',
+      cancelled: '취소했습니다.',
+      errTitle: '코드를 받지 못했습니다',
+      err: {
+        NETWORK: '서버에 연결할 수 없습니다.',
+        NOTE_EMPTY: '판독문이 비어 있습니다.',
+        NOTE_TOO_LONG: '판독문이 너무 깁니다. 최대 {max}자까지 받을 수 있습니다.',
+        UNAUTHORIZED: '접근 토큰이 없거나 맞지 않습니다.',
+        ORIGIN_NOT_ALLOWED: '이 페이지 주소가 서버의 허용 목록에 없습니다.',
+        QUEUE_FULL: '대기 중인 판독문이 많습니다. 잠시 뒤에 다시 실행해 주세요.',
+        LLM_UNREACHABLE: '서버는 응답하지만 생성 모델에 연결하지 못했습니다.',
+        LLM_TIMEOUT: '생성 모델이 제한 시간 안에 답하지 않았습니다.',
+        LLM_HTTP_ERROR: '생성 모델이 오류를 돌려주었습니다.',
+        LLM_BAD_RESPONSE: '생성 모델의 응답 형식을 읽지 못했습니다.',
+        NO_ANSWER: '모델 응답에 코드 목록이 없었습니다. 다시 실행해 보세요.',
+        NO_ANSWER_TRUNCATED: '모델이 길이 제한 안에 답을 끝내지 못했습니다. 판독문을 줄이거나 다시 실행해 보세요.',
+        JOB_NOT_FOUND: '서버에서 이 작업을 찾을 수 없습니다. 서버가 재시작됐을 수 있습니다.',
+        INTERNAL: '서버 내부 오류가 났습니다.',
+        UNKNOWN: '알 수 없는 오류가 났습니다.'
+      },
+      hint: {
+        NETWORK: '서버가 꺼졌거나 연결이 끊겼습니다.',
+        UNAUTHORIZED: '서버가 알려 준 링크로 다시 열어 주세요.',
+        ORIGIN_NOT_ALLOWED: '서버 설정에서 이 페이지 주소를 허용해야 합니다.',
+        LLM_UNREACHABLE: '모델 서비스가 켜져 있는지 확인해 주세요.'
+      },
+      foot: '실시간 데모 · 코드명은 ICD-10-CM 공식 명칭(132개 벤치마크 라벨 목록)입니다.'
+    },
+    en: {
+      pageTitle: 'Live demo · ICD-10-CM codes',
+      title: 'Live demo',
+      back: 'Back to examples',
+      langLabel: 'Language',
+      lede: 'Paste a clinical note and run it: the model picks ICD-10-CM codes from the 132-code label list and shows them with their official titles.',
+      examplesLabel: 'Examples',
+      example: 'Example {n}',
+      reasonOff: 'The server is off, so nothing can run.',
+      reasonToken: 'No access. Open the page again with the link the server gave you.',
+      reasonOrigin: 'The server must allow this page address before you can run.',
+      reasonModel: 'Run becomes available when the model is ready.',
+      noteTitle: 'Clinical note',
+      noteSub: 'One note in English · Examples 1–3 are made-up notes · de-identified text only',
+      notePlaceholder: 'Paste the note here.',
+      runBtn: 'Run',
+      modeLegend: 'How to run',
+      modeFast: 'Fast',
+      modeFastSub: 'Answers at once without reasoning · a few seconds',
+      modeFull: 'Same setting as the experiments',
+      modeFullSub: 'The model reasons, then answers · usually tens of seconds, up to 2–3 minutes',
+      runningFast: 'The model is choosing codes',
+      waitFast: 'This usually takes a few seconds.',
+      metaReasoned: 'with reasoning',
+      metaNoReasoning: 'without reasoning',
+      fastFellBack: 'The model on the server did not accept the no-reasoning setting, so it reasoned.',
+      clearBtn: 'Clear',
+      privacy: 'The note goes from this browser straight to the inference server and does not pass through the service that hosts this page. The server keeps neither the note nor the model response in files or logs.',
+      resultTitle: 'Codes suggested by the model',
+      resultSub: 'Suggestions, not final codes',
+      idle: 'Pick an example or paste a note, then press Run. The codes and their official titles appear here.',
+      count: '{n} / {max} characters',
+      connChecking: 'Checking the server',
+      connOk: 'Server on',
+      connDown: 'Server off',
+      connToken: 'Server on · no access',
+      connOrigin: 'Server on · this page is not allowed',
+      connNoModel: 'Server on · model loading',
+      sending: 'Sending the note',
+      queued: 'Waiting · {n} ahead',
+      running: 'The model is reading the note and choosing codes',
+      elapsed: '{s} s elapsed',
+      wait: 'The model reasons before it answers, so this can take from tens of seconds to 2–3 minutes. Closing this tab loses the result.',
+      cancelBtn: 'Cancel',
+      resultCount: '{n} codes',
+      resultNone: 'The model suggested no code.',
+      resultMeta: 'Model {model} · {s} s · {reasoning} · method {pipeline} (no retrieval or extraction stage)',
+      outside: 'Outside the label list',
+      noTitle: 'This code is not in the 132-code label list, so no official title can be shown.',
+      truncated: 'The model response reached the length limit. The list may be incomplete.',
+      cancelled: 'Cancelled.',
+      errTitle: 'No codes were returned',
+      err: {
+        NETWORK: 'Cannot reach the server.',
+        NOTE_EMPTY: 'The note is empty.',
+        NOTE_TOO_LONG: 'The note is too long. The server accepts up to {max} characters.',
+        UNAUTHORIZED: 'The access token is missing or wrong.',
+        ORIGIN_NOT_ALLOWED: 'This page address is not on the server allow list.',
+        QUEUE_FULL: 'Many notes are waiting. Run it again in a moment.',
+        LLM_UNREACHABLE: 'The server answered, but it could not reach the generation model.',
+        LLM_TIMEOUT: 'The generation model did not answer within the time limit.',
+        LLM_HTTP_ERROR: 'The generation model returned an error.',
+        LLM_BAD_RESPONSE: 'The response of the generation model could not be read.',
+        NO_ANSWER: 'The model response had no code list. Try running it again.',
+        NO_ANSWER_TRUNCATED: 'The model did not finish its answer within the length limit. Shorten the note or run it again.',
+        JOB_NOT_FOUND: 'The server no longer has this job. It may have been restarted.',
+        INTERNAL: 'The server had an internal error.',
+        UNKNOWN: 'An unknown error occurred.'
+      },
+      hint: {
+        NETWORK: 'The server was turned off or the connection was lost.',
+        UNAUTHORIZED: 'Open the page again with the link the server gave you.',
+        ORIGIN_NOT_ALLOWED: 'The server settings must allow this page address.',
+        LLM_UNREACHABLE: 'Check that the model service is on.'
+      },
+      foot: 'Live demo · Titles are official ICD-10-CM titles (132-code benchmark label list).'
+    }
+  };
+
+  // 예시 1~3은 모두 지어낸 판독문이다. 실제 환자의 기록이 아니고, 벤치마크의 노트도 아니다.
+  var SAMPLES = [
+    [
+      'CHIEF COMPLAINT', '',
+      'Follow-up of diabetes and high blood pressure.', '',
+      'HISTORY OF PRESENT ILLNESS', '',
+      'The patient is a 58-year-old woman who returns for a routine follow-up. Her type 2 diabetes has been stable on metformin, with home fasting glucose readings between 110 and 130. She denies numbness or tingling in her feet and has no known kidney or eye complications. Her hypertension is treated with lisinopril, and home blood pressures run around 128/78. For the past two weeks she has had heartburn after meals and at night, without difficulty swallowing, weight loss, or black stools. She also reports three weeks of low back pain that started after gardening, without leg pain, numbness, or weakness.', '',
+      'REVIEW OF SYSTEMS', '',
+      'Negative for chest pain, shortness of breath, and dizziness.', '',
+      'PHYSICAL EXAM', '',
+      'Blood pressure 130/80. Heart with regular rate and rhythm, no murmur. Lungs clear. Abdomen soft and non-tender. Lumbar paraspinal muscles tender on palpation. Straight leg raise negative on both sides.', '',
+      'RESULTS', '',
+      'Hemoglobin A1c 6.8%.', '',
+      'ASSESSMENT AND PLAN', '',
+      '1. Type 2 diabetes mellitus without complications. Continue metformin 1000 mg twice daily. Repeat A1c in 3 months.',
+      '2. Hypertension. Well controlled. Continue lisinopril 20 mg daily.',
+      '3. Gastroesophageal reflux disease. Start omeprazole 20 mg daily for 8 weeks and avoid late meals.',
+      '4. Low back pain. Likely muscular. Recommend stretching, heat, and ibuprofen as needed.'
+    ].join('\n'),
+    [
+      'CHIEF COMPLAINT', '',
+      'Right knee pain.', '',
+      'HISTORY OF PRESENT ILLNESS', '',
+      'The patient is a 34-year-old man who presents with right knee pain that began 3 days ago when he twisted the knee while playing soccer. He felt a pop on the inside of the knee and noticed swelling by the evening. He is able to bear weight but has pain with pivoting. He denies locking or giving way. Ibuprofen has given partial relief. He has a history of mild intermittent asthma and uses an albuterol inhaler a few times a year; he has had no recent wheezing.', '',
+      'PHYSICAL EXAM', '',
+      'Right knee: mild effusion. Tenderness over the medial joint line and along the medial collateral ligament. Pain and mild laxity with valgus stress at 30 degrees. Lachman and anterior drawer negative. McMurray negative. Neurovascularly intact distally.',
+      'Lungs: clear to auscultation bilaterally, no wheezes.', '',
+      'RESULTS', '',
+      'X-ray of the right knee, 3 views: no fracture or dislocation.', '',
+      'ASSESSMENT AND PLAN', '',
+      '1. Sprain of the medial collateral ligament of the right knee, initial visit. Hinged knee brace for 4 weeks, ice, elevation, and ibuprofen 600 mg three times daily with food. Referral to physical therapy. Return in 4 weeks; MRI if not improving.',
+      '2. Mild intermittent asthma, stable. Continue albuterol as needed.'
+    ].join('\n'),
+    [
+      'CHIEF COMPLAINT', '',
+      'Shortness of breath and leg swelling.', '',
+      'HISTORY OF PRESENT ILLNESS', '',
+      'The patient is a 71-year-old woman with a history of atrial fibrillation, hyperlipidemia, and hypothyroidism who presents with 2 weeks of shortness of breath on exertion and swelling of both ankles. She sleeps on two pillows. She denies chest pain, palpitations, fever, or cough. She has been eating more salty food and missed several doses of her diuretic. She takes apixaban, metoprolol, atorvastatin, levothyroxine, and furosemide.', '',
+      'PHYSICAL EXAM', '',
+      'Blood pressure 138/84, heart rate 88 and irregularly irregular, oxygen saturation 95% on room air. Neck: jugular venous distention to 8 cm. Lungs: fine crackles at both bases. Heart: irregular rhythm, no murmur. Extremities: 2+ pitting edema of both ankles.', '',
+      'RESULTS', '',
+      'ECG: atrial fibrillation with controlled ventricular rate. Chest X-ray: mild pulmonary vascular congestion. TSH within normal limits.', '',
+      'ASSESSMENT AND PLAN', '',
+      '1. Heart failure with fluid overload. Increase furosemide to 40 mg twice daily for 5 days, then 40 mg daily. Low-salt diet and daily weights. Echocardiogram ordered.',
+      '2. Atrial fibrillation, rate controlled. Continue metoprolol and apixaban.',
+      '3. Hyperlipidemia. Continue atorvastatin.',
+      '4. Hypothyroidism, TSH at goal. Continue levothyroxine.'
+    ].join('\n')
+  ];
+
+  var params = new URLSearchParams(location.search);
+  var lang = params.get('lang') === 'en' ? 'en' : 'ko';
+  var L = TEXT[lang];
+
+  function fill(text, vars) {
+    return String(text).replace(/\{(\w+)\}/g, function (m, k) { return vars && vars[k] !== undefined ? vars[k] : m; });
+  }
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function num(n) { return Number(n).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US'); }
+
+  // ---- 저장: 접근 토큰, 서버 포트, 고른 실행 방식만. 판독문은 어디에도 저장하지 않는다.
+  var KEY_API = 'icdDemo.apiBase', KEY_TOKEN = 'icdDemo.token', KEY_MODE = 'icdDemo.mode';
+  function load(key) { try { return localStorage.getItem(key) || ''; } catch (e) { return ''; } }
+  function save(key, value) {
+    try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (e) { /* 저장이 막혀도 동작한다 */ }
+  }
+  var mem = { api: load(KEY_API), token: load(KEY_TOKEN), mode: load(KEY_MODE) };
+  // 토큰과 서버 주소는 화면에서 입력받지 않는다. 서버가 알려 준 링크(#token=...)로 한 번 열면 이 브라우저에
+  // 저장하고 주소창에서는 바로 지운다. 주소는 이 컴퓨터 안(127.0.0.1, localhost)만 받는다: 누가 만든 링크로
+  // 판독문이 다른 서버로 가는 일을 막기 위해서다. #reset 은 저장한 값을 지운다.
+  (function readLink() {
+    var hash = location.hash.replace(/^#/, '');
+    if (!hash) return;
+    var given = new URLSearchParams(hash), touched = false;
+    if (given.has('reset')) { mem.api = ''; mem.token = ''; save(KEY_API, ''); save(KEY_TOKEN, ''); touched = true; }
+    if (given.get('token')) { mem.token = given.get('token').trim(); save(KEY_TOKEN, mem.token); touched = true; }
+    var address = (given.get('api') || '').trim().replace(/\/+$/, '');
+    if (/^http:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?$/.test(address)) { mem.api = address; save(KEY_API, address); touched = true; }
+    if (touched && window.history && history.replaceState) history.replaceState(null, '', location.pathname + location.search);
+  })();
+  // HTTPS로 올린 페이지에서는 SSH 터널(127.0.0.1)로, 서버가 직접 내준 페이지에서는 같은 주소로 요청한다.
+  var DEFAULT_API = location.protocol === 'http:' ? location.origin : 'http://127.0.0.1:8765';
+  function apiBase() { return (mem.api || DEFAULT_API).replace(/\/+$/, ''); }
+
+  function api(method, path, body, timeoutMs) {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || 15000);
+    var headers = {};
+    if (mem.token) headers['Authorization'] = 'Bearer ' + mem.token;
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    return fetch(apiBase() + path, {
+      method: method, headers: headers, body: body === undefined ? undefined : JSON.stringify(body),
+      signal: ctrl.signal, mode: 'cors', cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        clearTimeout(timer);
+        return { status: res.status, ok: res.ok, data: data || {} };
+      });
+    }, function () {
+      clearTimeout(timer);
+      throw { code: 'NETWORK' };
+    });
+  }
+
+  // ---- 화면 글자
+  document.documentElement.lang = lang;
+  document.title = L.pageTitle;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n]'), function (node) { node.textContent = L[node.getAttribute('data-i18n')]; });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n-ph]'), function (node) { node.placeholder = L[node.getAttribute('data-i18n-ph')]; });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n-label]'), function (node) { node.setAttribute('aria-label', L[node.getAttribute('data-i18n-label')]); });
+  Array.prototype.forEach.call(document.querySelectorAll('.lang-opt'), function (node) {
+    if (node.getAttribute('data-lang') === lang) node.setAttribute('aria-current', 'true');
+  });
+  $('back-link').href = lang === 'en' ? '/index_en.html' : '/';
+
+  var noteEl = $('note'), runBtn = $('run-btn'), resultEl = $('result'), countEl = $('count');
+  var maxChars = 60000;
+  var busy = false, runSeq = 0, jobId = null, startedAt = 0, tick = null, pollTimer = null, runMode = 'fast';
+  var exampleButtons = SAMPLES.map(function (text, i) {
+    var b = el('button', 'ex-btn', fill(L.example, { n: i + 1 }));
+    b.type = 'button';
+    b.id = 'ex-btn-' + i;
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', function () {
+      if (busy) return;
+      noteEl.value = text;
+      markExample(i);
+      updateCount();
+      showIdle();
+    });
+    $('ex-buttons').appendChild(b);
+    return b;
+  });
+  function markExample(which) {
+    exampleButtons.forEach(function (b, i) { b.setAttribute('aria-pressed', i === which ? 'true' : 'false'); });
+  }
+  var modeInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="mode"]'));
+  function currentMode() {
+    for (var i = 0; i < modeInputs.length; i++) if (modeInputs[i].checked) return modeInputs[i].value;
+    return 'fast';
+  }
+  function setMode(value) {
+    modeInputs.forEach(function (input) { input.checked = input.value === value; });
+  }
+  function showModeNote() { $('mode-sub').textContent = currentMode() === 'fast' ? L.modeFastSub : L.modeFullSub; }
+  if (mem.mode === 'fast' || mem.mode === 'full') setMode(mem.mode);
+  showModeNote();
+  modeInputs.forEach(function (input) {
+    // 고른 방식은 이 브라우저에만 기억해 둔다.
+    input.addEventListener('change', function () { mem.mode = currentMode(); save(KEY_MODE, mem.mode); showModeNote(); });
+  });
+
+  // ---- 연결 상태: checking | ok | off(꺼짐·연결 안 됨) | token | origin | model(모델 준비 안 됨)
+  var conn = 'checking', recheckTimer = null, healthSeq = 0;
+  var CONN = {
+    checking: ['connChecking', ''], ok: ['connOk', 'ok'], off: ['connDown', 'no'],
+    token: ['connToken', 'warn'], origin: ['connOrigin', 'no'], model: ['connNoModel', 'warn']
+  };
+  var REASON = { off: 'reasonOff', token: 'reasonToken', origin: 'reasonOrigin', model: 'reasonModel' };
+  function setConn(state) {
+    conn = state;
+    $('conn-chip').textContent = L[CONN[state][0]];
+    $('conn-dot').className = 'dot' + (CONN[state][1] ? ' ' + CONN[state][1] : '');
+    var reason = $('run-reason');
+    reason.hidden = !REASON[state];
+    reason.textContent = REASON[state] ? L[REASON[state]] : '';
+    updateCount();
+  }
+  function scheduleRecheck() {
+    if (recheckTimer) clearTimeout(recheckTimer);
+    // 꺼져 있으면 10초마다, 연결돼 있으면 30초마다 다시 확인해서 켜짐·꺼짐을 바로 보여 준다.
+    recheckTimer = setTimeout(function () {
+      if (document.hidden || busy) { scheduleRecheck(); return; }
+      checkHealth(true);
+    }, conn === 'ok' ? 30000 : 10000);
+  }
+  function checkHealth(quiet) {
+    var seq = ++healthSeq; // 늦게 도착한 예전 응답은 버린다
+    if (!quiet) setConn('checking');
+    return api('GET', '/api/health', undefined, 6000).then(function (r) {
+      if (seq !== healthSeq) return;
+      var d = r.data;
+      if (r.status === 403) { setConn('origin'); return; }
+      if (!r.ok || !d.ok) { setConn('off'); return; }
+      if (!d.authorized) { setConn('token'); return; }
+      if (d.max_note_chars) maxChars = d.max_note_chars;
+      if (!mem.mode && !busy && (d.default_mode === 'fast' || d.default_mode === 'full')) { setMode(d.default_mode); showModeNote(); }
+      setConn(d.llm_ready ? 'ok' : 'model');
+    }, function () {
+      if (seq === healthSeq) setConn('off');
+    }).then(function () {
+      if (seq === healthSeq) scheduleRecheck();
+    });
+  }
+
+  // ---- 입력
+  function updateCount() {
+    var n = noteEl.value.length;
+    countEl.textContent = fill(L.count, { n: num(n), max: num(maxChars) });
+    countEl.className = 'count' + (n > maxChars ? ' over' : '');
+    runBtn.disabled = busy || !noteEl.value.trim() || n > maxChars || conn !== 'ok';
+  }
+
+  // ---- 결과 영역
+  function clearResult() { while (resultEl.firstChild) resultEl.removeChild(resultEl.firstChild); }
+  function showIdle(text) {
+    clearResult();
+    resultEl.appendChild(el('p', 'empty', text || L.idle));
+  }
+  function stopTimers() {
+    if (tick) { clearInterval(tick); tick = null; }
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+  }
+  function setBusy(on) {
+    busy = on;
+    resultEl.setAttribute('aria-busy', on ? 'true' : 'false');
+    noteEl.readOnly = on;
+    exampleButtons.forEach(function (b) { b.disabled = on; });
+    $('clear-btn').disabled = on;
+    modeInputs.forEach(function (input) { input.disabled = on; });
+    updateCount();
+  }
+  function showWorking(stageText) {
+    var line = $('working-stage');
+    if (line) { line.textContent = stageText; return; }
+    clearResult();
+    var box = el('div', 'working');
+    var row = el('div', 'working-line');
+    row.appendChild(el('span', 'spinner'));
+    var stage = el('span', '', stageText);
+    stage.id = 'working-stage';
+    row.appendChild(stage);
+    var elapsed = el('span', 'elapsed', '');
+    elapsed.id = 'working-elapsed';
+    row.appendChild(elapsed);
+    box.appendChild(row);
+    box.appendChild(el('p', 'note', runMode === 'fast' ? L.waitFast : L.wait));
+    var actions = el('div', 'row');
+    var cancel = el('button', 'btn', L.cancelBtn);
+    cancel.type = 'button';
+    cancel.id = 'cancel-btn';
+    cancel.addEventListener('click', cancelRun);
+    actions.appendChild(cancel);
+    box.appendChild(actions);
+    resultEl.appendChild(box);
+  }
+  function showElapsed() {
+    var node = $('working-elapsed');
+    if (node) node.textContent = fill(L.elapsed, { s: Math.round((Date.now() - startedAt) / 1000) });
+  }
+  function showError(code, serverMessage, more) {
+    stopTimers();
+    setBusy(false);
+    clearResult();
+    var box = el('div', 'alert');
+    box.setAttribute('role', 'alert');
+    box.appendChild(el('strong', '', L.errTitle));
+    var text = L.err[code] ? fill(L.err[code], { max: num((more && more.max_note_chars) || maxChars) }) : (serverMessage || L.err.UNKNOWN);
+    box.appendChild(el('span', '', text));
+    if (L.hint[code]) box.appendChild(el('span', 'hint', L.hint[code]));
+    resultEl.appendChild(box);
+    if (code === 'NETWORK' || code === 'UNAUTHORIZED' || code === 'ORIGIN_NOT_ALLOWED' || code === 'LLM_UNREACHABLE' || code === 'JOB_NOT_FOUND') checkHealth(true);
+  }
+  function showResult(result) {
+    stopTimers();
+    setBusy(false);
+    clearResult();
+    var codes = result.codes || [];
+    var head = el('div', 'result-head');
+    head.appendChild(el('b', '', codes.length ? fill(L.resultCount, { n: codes.length }) : L.resultNone));
+    resultEl.appendChild(head);
+    if (result.truncated) resultEl.appendChild(el('p', 'warnbox', L.truncated));
+    if (codes.length) {
+      var list = el('ol', 'codes');
+      list.id = 'code-list';
+      codes.forEach(function (row) {
+        var item = el('li', 'code-row' + (row.in_label_list ? '' : ' outside'));
+        item.appendChild(el('span', 'code', row.code));
+        if (row.title) {
+          item.appendChild(el('span', 'code-title', row.title));
+        } else {
+          item.appendChild(el('span', 'code-title missing', L.noTitle));
+          item.appendChild(el('span', 'chip warn', L.outside));
+        }
+        list.appendChild(item);
+      });
+      resultEl.appendChild(list);
+    }
+    if (result.mode === 'fast' && result.reasoning_used) resultEl.appendChild(el('p', 'warnbox', L.fastFellBack));
+    resultEl.appendChild(el('p', 'result-meta', fill(L.resultMeta, {
+      model: result.model, s: result.elapsed_s, pipeline: result.pipeline,
+      reasoning: result.reasoning_used ? L.metaReasoned : L.metaNoReasoning
+    })));
+  }
+
+  // ---- 실행
+  function failFrom(r) {
+    var e = (r && r.data && r.data.error) || {};
+    showError(e.code || 'UNKNOWN', e.message, e);
+  }
+  function run() {
+    if (busy || conn !== 'ok' || !noteEl.value.trim()) return;
+    var seq = ++runSeq;
+    jobId = null;
+    startedAt = Date.now();
+    runMode = currentMode();
+    setBusy(true);
+    showWorking(L.sending);
+    tick = setInterval(showElapsed, 500);
+    api('POST', '/api/predict', { note: noteEl.value, mode: runMode }, 30000).then(function (r) {
+      if (seq !== runSeq) return;
+      if (r.status === 202 && r.data.job_id) { jobId = r.data.job_id; poll(seq, 0); }
+      else failFrom(r);
+    }, function () {
+      if (seq === runSeq) showError('NETWORK');
+    });
+  }
+  function poll(seq, misses) {
+    api('GET', '/api/jobs/' + encodeURIComponent(jobId), undefined, 15000).then(function (r) {
+      if (seq !== runSeq) return;
+      if (!r.ok) { failFrom(r); return; }
+      var status = r.data.status;
+      if (status === 'queued' || status === 'running') {
+        showWorking(status === 'queued' ? fill(L.queued, { n: r.data.ahead || 0 }) : (runMode === 'fast' ? L.runningFast : L.running));
+        pollTimer = setTimeout(function () { poll(seq, 0); }, Date.now() - startedAt > 30000 ? 2000 : 1000);
+      } else if (status === 'done') {
+        showResult(r.data.result || {});
+      } else {
+        failFrom({ data: { error: r.data.error } });
+      }
+    }, function () {
+      if (seq !== runSeq) return;
+      // 잠깐 끊긴 것일 수 있으니 몇 번은 다시 묻는다.
+      if (misses < 4) pollTimer = setTimeout(function () { poll(seq, misses + 1); }, 2000);
+      else showError('NETWORK');
+    });
+  }
+  function cancelRun() {
+    var id = jobId;
+    runSeq++;
+    jobId = null;
+    stopTimers();
+    setBusy(false);
+    showIdle(L.cancelled);
+    if (id) api('DELETE', '/api/jobs/' + encodeURIComponent(id), undefined, 8000).catch(function () {});
+  }
+
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && !busy) checkHealth(true); });
+
+  noteEl.addEventListener('input', function () { markExample(-1); updateCount(); });
+  noteEl.addEventListener('keydown', function (ev) {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); run(); }
+  });
+  runBtn.addEventListener('click', run);
+  $('clear-btn').addEventListener('click', function () { noteEl.value = ''; markExample(-1); updateCount(); showIdle(); noteEl.focus(); });
+
+  updateCount();
+  showIdle();
+  checkHealth();
+})();
+</script>
+</body>
+</html>
