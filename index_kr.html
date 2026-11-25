@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}</style>
+</head>
+<body>
+<title>ICD 코딩 근거 검토</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* 배치: 위에 파이프라인 세 단계 띠, 왼쪽에 노트 원문(근거 강조), 오른쪽에 검토 패널 */
+:root {
+  --bg: #f1f4f3;
+  --surface: #ffffff;
+  --ink: #17211f;
+  --muted: #586764;
+  --line: #d3dbd8;
+  --chip: #e6edea;
+  --accent: #0b6a60;
+  --accent-ink: #ffffff;
+  --mark: #fdeaa6;
+  --mark-on: #f5b13c;
+  --ok: #1c7340;
+  --ok-bg: #e2f2e7;
+  --no: #a3302a;
+  --no-bg: #f8e5e3;
+  --warn: #7d5200;
+  --warn-bg: #fbefd0;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111615; --surface: #1a2120; --ink: #e5ebe9; --muted: #9aa8a4; --line: #2d3836; --chip: #232d2b;
+    --accent: #56c7b7; --accent-ink: #06211d; --mark: #574813; --mark-on: #a36f0c;
+    --ok: #72d398; --ok-bg: #163423; --no: #f08c84; --no-bg: #3a1c1a; --warn: #f0c56c; --warn-bg: #3a2e10;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111615; --surface: #1a2120; --ink: #e5ebe9; --muted: #9aa8a4; --line: #2d3836; --chip: #232d2b;
+  --accent: #56c7b7; --accent-ink: #06211d; --mark: #574813; --mark-on: #a36f0c;
+  --ok: #72d398; --ok-bg: #163423; --no: #f08c84; --no-bg: #3a1c1a; --warn: #f0c56c; --warn-bg: #3a2e10;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.55; }
+.app {
+  max-width: 1280px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+h1, h2, h3, p, ol, ul { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+button, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { display: flex; flex-direction: column; gap: 10px; }
+.top-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 62ch; }
+.ex-pick { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.ex-buttons { display: flex; flex-wrap: wrap; gap: 4px; }
+.ex-btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ex-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.top-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.lang-switch { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px; gap: 2px; }
+.top-tools .divider { width: 1px; align-self: stretch; background: var(--line); }
+.lang-opt { border-radius: 4px; padding: 2px 9px; font-size: 12.5px; line-height: 1.6; color: var(--muted); text-decoration: none; }
+.lang-opt:hover { color: var(--ink); background: var(--chip); }
+.lang-opt[aria-current="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.banner { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); border-radius: 6px; padding: 8px 12px; font-size: 13.5px; }
+
+.stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stage-name { font-size: 12px; color: var(--muted); letter-spacing: 0.02em; }
+.stage-main { font-weight: 600; font-variant-numeric: tabular-nums; }
+.stage-sub { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.panel-head { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+h2 { font-size: 15px; font-weight: 600; }
+.src { font-size: 12.5px; color: var(--muted); }
+.note-panel { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.note-body {
+  padding: 14px 16px; white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: calc(100vh - 150px); overflow: auto; font-size: 14.5px; line-height: 1.7;
+}
+.legend { padding: 8px 16px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.swatch { display: inline-block; width: 22px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: baseline; }
+.swatch.m1 { background: var(--mark); }
+.swatch.m2 { background: var(--mark-on); }
+mark.ev { background: var(--mark); color: inherit; border-radius: 2px; cursor: pointer; padding: 1px 0; }
+mark.ev.dim { background: transparent; box-shadow: inset 0 -2px 0 var(--mark); }
+mark.ev.on { background: var(--mark-on); }
+
+.tabs { display: flex; gap: 4px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); }
+.tab { background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px; color: var(--muted); font-weight: 500; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.view { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; background: var(--surface); }
+.card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card.accepted { background: var(--ok-bg); }
+.card.rejected { background: var(--no-bg); }
+.card.rejected .code-title { text-decoration: line-through; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; background: transparent; border: 0; padding: 0; text-align: left; width: 100%; }
+.code { font-family: var(--font-mono); font-weight: 500; font-size: 16px; font-variant-numeric: tabular-nums; }
+.code-title { flex: 1 1 12ch; min-width: 0; }
+.chip { display: inline-block; background: var(--chip); color: var(--muted); border-radius: 999px; padding: 1px 8px; font-size: 12px; white-space: nowrap; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); }
+.chip.no { background: var(--no-bg); color: var(--no); }
+.chip.warn { background: var(--warn-bg); color: var(--warn); }
+.meta { font-size: 13px; color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 500; }
+.quotes { display: flex; flex-direction: column; gap: 4px; }
+.quote { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; border: 0; background: transparent; padding: 3px 0 3px 10px; border-left: 3px solid var(--mark-on); text-align: left; font-size: 13.5px; }
+.quote.unlinked { border-left-color: var(--line); cursor: default; }
+.quote-text { min-width: 0; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; font-size: 13.5px; }
+.btn[aria-pressed="true"].accept { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.btn[aria-pressed="true"].reject { background: var(--no); border-color: var(--no); color: var(--surface); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.link { border-color: transparent; background: transparent; color: var(--accent); padding-inline: 4px; }
+.alts { border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.alts-title { font-size: 12.5px; color: var(--muted); }
+.cand-list { display: flex; flex-direction: column; gap: 2px; }
+.cand { display: grid; grid-template-columns: 2.2em 7.5em minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; font-size: 13.5px; }
+.cand .rank { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.cand .ccode { font-family: var(--font-mono); }
+.cand .ctitle { min-width: 0; overflow-wrap: anywhere; }
+.cand.picked .ccode, .cand.picked .ctitle { font-weight: 600; }
+
+.summary { border-top: 1px solid var(--line); padding: 12px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.counts { display: flex; flex-wrap: wrap; gap: 6px; font-variant-numeric: tabular-nums; }
+.spacer { flex: 1 1 0; }
+.copy-status { font-size: 12.5px; color: var(--muted); order: 3; flex: 1 0 100%; text-align: right; }
+.copy-status:empty { display: none; }
+#copy-fallback { order: 4; }
+#copy-fallback { width: 100%; min-height: 90px; font-family: var(--font-mono); font-size: 12.5px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.foot { font-size: 12.5px; color: var(--muted); }
+.foot a { color: var(--accent); }
+
+@media (max-width: 860px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .note-panel { position: static; }
+  .note-body { max-height: 46vh; }
+  .stages { grid-template-columns: minmax(0, 1fr); }
+  .cand { grid-template-columns: 2.2em minmax(0, 1fr) auto; }
+  .cand .rank { grid-column: 1; grid-row: 1; }
+  .cand .ccode { grid-column: 2; grid-row: 1; }
+  .cand .ctitle { grid-column: 2 / 4; grid-row: 2; }
+  .cand > :last-child { grid-column: 3; grid-row: 1; justify-self: end; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="top-row">
+      <h1>ICD 코딩 근거 검토</h1>
+      <div class="top-tools">
+        <div class="ex-pick" role="group" aria-label="예시 노트"><span>예시 노트</span><span class="ex-buttons" id="example-buttons"></span></div>
+        <span class="divider" aria-hidden="true"></span>
+        <nav class="lang-switch" aria-label="언어">
+          <a class="lang-opt" href="/" hreflang="ko" lang="ko" aria-current="true">한국어</a>
+          <a class="lang-opt" href="/index_en.html" hreflang="en" lang="en">EN</a>
+        </nav>
+      </div>
+    </div>
+    <p class="lede">모델이 제안한 ICD-10-CM 코드를 노트 원문의 근거와 나란히 보고, 수락하거나 제외하거나 다른 후보로 바꿉니다.</p>
+    <p class="banner" id="mock-banner" hidden>이 예시의 추출 개념, 후보, 제안 코드는 화면 구성을 보여주려고 손으로 만든 것입니다. 실제 파이프라인 출력이 아닙니다.</p>
+    <ol class="stages" id="stages"></ol>
+  </header>
+
+  <main class="cols">
+    <section class="panel note-panel" aria-label="노트 원문">
+      <div class="panel-head">
+        <h2 id="note-title">노트</h2>
+        <p class="src" id="note-source"></p>
+      </div>
+      <div class="note-body" id="note-body" tabindex="0"></div>
+      <p class="legend">
+        <span><span class="swatch m1"></span>근거로 인용된 구간</span>
+        <span><span class="swatch m2"></span>지금 선택한 코드의 근거</span>
+        <span>강조된 구간을 누르면 해당 코드로 이동합니다.</span>
+      </p>
+    </section>
+
+    <section class="panel review-panel" aria-label="코드 검토">
+      <div class="tabs" role="tablist" aria-label="보기 선택">
+        <button class="tab" role="tab" id="tab-codes" aria-controls="view-codes" aria-selected="true">제안 코드</button>
+        <button class="tab" role="tab" id="tab-items" aria-controls="view-items" aria-selected="false">추출 개념과 후보</button>
+      </div>
+      <div class="view" id="view-codes" role="tabpanel" aria-labelledby="tab-codes"></div>
+      <div class="view" id="view-items" role="tabpanel" aria-labelledby="tab-items" hidden></div>
+      <div class="summary">
+        <div class="counts" id="counts"></div>
+        <span class="spacer"></span>
+        <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
+        <button class="btn" id="reset-btn" type="button">검토 초기화</button>
+        <button class="btn primary" id="copy-btn" type="button">수락한 코드 복사</button>
+        <textarea id="copy-fallback" readonly hidden aria-label="수락한 코드 목록"></textarea>
+      </div>
+    </section>
+  </main>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>window.ICD_EXAMPLES = [{"candidate_count": 100, "catalog": "ICD-10-CM FY2022 official titles (two codes from the April 2025 release) · 132-code benchmark label list", "codes": [{"code": "M25.522", "evidence": [{"end": 2087, "linked": true, "quote": "left elbow joint pain", "start": 2066}, {"end": 2087, "linked": true, "quote": "left elbow joint pain.", "start": 2066}], "item_ids": ["q05"], "title": "Pain in left elbow"}, {"code": "J30.9", "evidence": [{"end": 1832, "linked": true, "quote": "medial nasal congestion from allergies", "start": 1794}], "item_ids": ["q10"], "title": "Allergic rhinitis, unspecified"}, {"code": "F32.A", "evidence": [{"linked": false, "quote": "past medical history significant for depression"}, {"end": 3147, "linked": true, "quote": "Depression.", "start": 3136}], "item_ids": ["q03"], "title": "Depression, unspecified"}, {"code": "K27.9", "evidence": [{"linked": false, "quote": "past medical history significant for peptic ulcer disease"}, {"end": 3284, "linked": true, "quote": "peptic ulcer disease.", "start": 3263}], "item_ids": ["q04"], "title": "Peptic ulcer, site unspecified, unspecified as acute or chronic, without hemorrhage or perforation"}, {"code": "G40.909", "evidence": [{"end": 146, "linked": true, "quote": "past medical history significant for epilepsy", "start": 101}, {"end": 2965, "linked": true, "quote": "Epilepsy.", "start": 2956}], "item_ids": ["q02"], "title": "Epilepsy, unspecified, not intractable, without status epilepticus"}], "id": "pipeline-aci-bench-20261124-D2N130", "items": [{"candidates": [{"code": "M19.90", "rank": 6, "title": "Unspecified osteoarthritis, unspecified site"}, {"code": "M06.9", "rank": 9, "title": "Rheumatoid arthritis, unspecified"}, {"code": "M10.9", "rank": 11, "title": "Gout, unspecified"}, {"code": "M25.561", "rank": 12, "title": "Pain in right knee"}, {"code": "M17.11", "rank": 14, "title": "Unilateral primary osteoarthritis, right knee"}], "concept": "Joint pain", "evidence": [{"end": 28, "linked": true, "quote": "Joint pain.", "start": 17}], "id": "q01", "query": "Joint pain", "tags": []}, {"candidates": [{"code": "G40.909", "rank": 5, "title": "Epilepsy, unspecified, not intractable, without status epilepticus"}, {"code": "G43.909", "rank": 85, "title": "Migraine, unspecified, not intractable, without status migrainosus"}, {"code": "I49.3", "rank": 86, "title": "Ventricular premature depolarization"}, {"code": "I48.91", "rank": 98, "title": "Unspecified atrial fibrillation"}], "concept": "Epilepsy", "evidence": [{"end": 146, "linked": true, "quote": "past medical history significant for epilepsy", "start": 101}, {"end": 2965, "linked": true, "quote": "Epilepsy.", "start": 2956}], "id": "q02", "query": "Epilepsy", "tags": ["history"]}, {"candidates": [{"code": "F32.A", "rank": 3, "title": "Depression, unspecified"}, {"code": "G47.00", "rank": 32, "title": "Insomnia, unspecified"}, {"code": "G31.84", "rank": 48, "title": "Mild cognitive impairment, so stated"}, {"code": "F10.90", "rank": 57, "title": "Alcohol use, unspecified, uncomplicated"}, {"code": "E03.9", "rank": 62, "title": "Hypothyroidism, unspecified"}], "concept": "Depression", "evidence": [{"linked": false, "quote": "past medical history significant for depression"}, {"end": 3147, "linked": true, "quote": "Depression.", "start": 3136}], "id": "q03", "query": "Depression", "tags": ["history"]}, {"candidates": [{"code": "K27.9", "rank": 4, "title": "Peptic ulcer, site unspecified, unspecified as acute or chronic, without hemorrhage or perforation"}, {"code": "R10.9", "rank": 37, "title": "Unspecified abdominal pain"}, {"code": "Z09", "rank": 51, "title": "Encounter for follow-up examination after completed treatment for conditions other than malignant neoplasm"}, {"code": "E11.621", "rank": 76, "title": "Type 2 diabetes mellitus with foot ulcer"}, {"code": "Z98.890", "rank": 88, "title": "Other specified postprocedural states"}], "concept": "Peptic ulcer disease", "evidence": [{"linked": false, "quote": "past medical history significant for peptic ulcer disease"}, {"end": 3284, "linked": true, "quote": "peptic ulcer disease.", "start": 3263}], "id": "q04", "query": "Peptic ulcer disease", "tags": ["history"]}, {"candidates": [{"code": "M25.522", "rank": 1, "title": "Pain in left elbow"}, {"code": "M25.521", "rank": 24, "title": "Pain in right elbow"}, {"code": "M19.021", "rank": 38, "title": "Primary osteoarthritis, right elbow"}, {"code": "M25.512", "rank": 84, "title": "Pain in left shoulder"}], "concept": "Left elbow joint pain", "evidence": [{"end": 2087, "linked": true, "quote": "left elbow joint pain", "start": 2066}, {"end": 2087, "linked": true, "quote": "left elbow joint pain.", "start": 2066}], "id": "q05", "query": "Left elbow joint pain", "tags": []}, {"candidates": [{"code": "S50.01XA", "rank": 7, "title": "Contusion of right elbow, initial encounter"}, {"code": "R60.0", "rank": 10, "title": "Localized edema"}, {"code": "D22.5", "rank": 91, "title": "Melanocytic nevi of trunk"}, {"code": "S83.411A", "rank": 100, "title": "Sprain of medial collateral ligament of right knee, initial encounter"}], "concept": "Swelling on olecranon", "evidence": [{"end": 586, "linked": true, "quote": "swelling on the olecranon of her elbow", "start": 548}], "id": "q06", "query": "Swelling on olecranon", "tags": []}, {"candidates": [{"code": "S16.1XXA", "rank": 21, "title": "Strain of muscle, fascia and tendon at neck level, initial encounter"}, {"code": "M51.9", "rank": 29, "title": "Unspecified thoracic, thoracolumbar and lumbosacral intervertebral disc disorder"}, {"code": "S13.9XXD", "rank": 41, "title": "Sprain of joints and ligaments of unspecified parts of neck, subsequent encounter"}, {"code": "S33.5XXA", "rank": 42, "title": "Sprain of ligaments of lumbar spine, initial encounter"}], "concept": "Stiffness", "evidence": [{"end": 510, "linked": true, "quote": "stiff and painful", "start": 493}], "id": "q07", "query": "Stiffness", "tags": []}, {"candidates": [{"code": "G56.00", "rank": 22, "title": "Carpal tunnel syndrome, unspecified upper limb"}, {"code": "G56.01", "rank": 23, "title": "Carpal tunnel syndrome, right upper limb"}, {"code": "M79.602", "rank": 27, "title": "Pain in left arm"}, {"code": "G56.03", "rank": 39, "title": "Carpal tunnel syndrome, bilateral upper limbs"}, {"code": "S43.81XA", "rank": 60, "title": "Sprain of other specified parts of right shoulder girdle, initial encounter"}], "concept": "Weakness in arm", "evidence": [{"end": 798, "linked": true, "quote": "weakness in her arm", "start": 779}], "id": "q08", "query": "Weakness in arm", "tags": []}, {"candidates": [{"code": "Z00.00", "rank": 43, "title": "Encounter for general adult medical examination without abnormal findings"}, {"code": "S82.61XA", "rank": 46, "title": "Displaced fracture of lateral malleolus of right fibula, initial encounter for closed fracture"}, {"code": "S63.501A", "rank": 47, "title": "Unspecified sprain of right wrist, initial encounter"}, {"code": "S83.421A", "rank": 50, "title": "Sprain of lateral collateral ligament of right knee, initial encounter"}, {"code": "S93.401A", "rank": 55, "title": "Sprain of unspecified ligament of right ankle, initial encounter"}], "concept": "Right-handedness", "evidence": [{"end": 624, "linked": true, "quote": "She reports that she is right-handed", "start": 588}], "id": "q09", "query": "Right-handedness", "tags": []}, {"candidates": [{"code": "J30.9", "rank": 2, "title": "Allergic rhinitis, unspecified"}, {"code": "J45.40", "rank": 63, "title": "Moderate persistent asthma, uncomplicated"}, {"code": "J45.20", "rank": 66, "title": "Mild intermittent asthma, uncomplicated"}, {"code": "J45.909", "rank": 68, "title": "Unspecified asthma, uncomplicated"}, {"code": "J45.21", "rank": 71, "title": "Mild intermittent asthma with (acute) exacerbation"}], "concept": "Nasal congestion from allergies", "evidence": [{"end": 1832, "linked": true, "quote": "medial nasal congestion from allergies", "start": 1794}], "id": "q10", "query": "Nasal congestion from allergies", "tags": []}, {"candidates": [{"code": "K58.9", "rank": 61, "title": "Irritable bowel syndrome without diarrhea"}, {"code": "B19.20", "rank": 69, "title": "Unspecified viral hepatitis C without hepatic coma"}, {"code": "B34.9", "rank": 74, "title": "Viral infection, unspecified"}, {"code": "K80.00", "rank": 77, "title": "Calculus of gallbladder with acute cholecystitis without obstruction"}, {"code": "R79.9", "rank": 99, "title": "Abnormal finding of blood chemistry, unspecified"}], "concept": "Gastritis", "evidence": [{"end": 2480, "linked": true, "quote": "EGD revealed an episode of gastritis", "start": 2444}], "id": "q11", "query": "Gastritis", "tags": []}, {"candidates": [{"code": "M77.11", "rank": 64, "title": "Lateral epicondylitis, right elbow"}, {"code": "M75.42", "rank": 65, "title": "Impingement syndrome of left shoulder"}, {"code": "M75.31", "rank": 87, "title": "Calcific tendinitis of right shoulder"}], "concept": "Left olecranon bursitis", "evidence": [{"end": 2771, "linked": true, "quote": "left olecranon bursitis caused by repetitive trauma", "start": 2720}], "id": "q12", "query": "Left olecranon bursitis", "tags": ["uncertain"]}, {"candidates": [{"code": "M76.61", "rank": 13, "title": "Achilles tendinitis, right leg"}, {"code": "S63.630A", "rank": 30, "title": "Sprain of interphalangeal joint of right index finger, initial encounter"}, {"code": "S80.01XA", "rank": 31, "title": "Contusion of right knee, initial encounter"}, {"code": "M51.27", "rank": 40, "title": "Other intervertebral disc displacement, lumbosacral region"}], "concept": "Repetitive trauma", "evidence": [{"end": 2771, "linked": true, "quote": "repetitive trauma", "start": 2754}], "id": "q13", "query": "Repetitive trauma", "tags": []}, {"candidates": [{"code": "R06.02", "rank": 35, "title": "Shortness of breath"}, {"code": "I11.0", "rank": 44, "title": "Hypertensive heart disease with heart failure"}, {"code": "G89.29", "rank": 45, "title": "Other chronic pain"}, {"code": "I13.0", "rank": 49, "title": "Hypertensive heart and chronic kidney disease with heart failure and stage 1 through stage 4 chronic kidney disease, or unspecified chronic kidney disease"}], "concept": "Stress", "evidence": [{"end": 1384, "linked": true, "quote": "dealing with a lot of stress last year", "start": 1346}], "id": "q14", "query": "Stress", "tags": []}, {"candidates": [{"code": "Z79.899", "rank": 16, "title": "Other long term (current) drug therapy"}, {"code": "G35", "rank": 26, "title": "Multiple sclerosis"}, {"code": "R42", "rank": 28, "title": "Dizziness and giddiness"}, {"code": "G50.0", "rank": 33, "title": "Trigeminal neuralgia"}, {"code": "R26.89", "rank": 58, "title": "Other abnormalities of gait and mobility"}], "concept": "Long-term use of Keppra", "evidence": [{"end": 1032, "linked": true, "quote": "still taking Keppra", "start": 1013}], "id": "q15", "query": "Long-term use of Keppra", "tags": []}, {"candidates": [{"code": "K21.9", "rank": 8, "title": "Gastro-esophageal reflux disease without esophagitis"}, {"code": "M81.0", "rank": 54, "title": "Age-related osteoporosis without current pathological fracture"}, {"code": "R13.10", "rank": 56, "title": "Dysphagia, unspecified"}, {"code": "N18.30", "rank": 59, "title": "Chronic kidney disease, stage 3 unspecified"}, {"code": "K59.09", "rank": 75, "title": "Other constipation"}], "concept": "Long-term use of Protonix", "evidence": [{"end": 1655, "linked": true, "quote": "has not had any issues with her ulcer since the procedure and everything has been good", "start": 1569}], "id": "q16", "query": "Long-term use of Protonix", "tags": []}], "label_space": 132, "note": "CHIEF COMPLAINT\n\nJoint pain.\n\nHISTORY OF PRESENT ILLNESS\n\nThe patient is a 26-year-old female with a past medical history significant for epilepsy, depression, and peptic ulcer disease who presents with some joint pain.\n\nThe patient reports that her left elbow has really been bothering her. She states that she sits at her desk all day for work with her elbows bent. She reports that after work it is really hard for her to flex and extend her left elbow. She reports that it has been really stiff and painful. She also notes that she has noticed swelling on the olecranon of her elbow. She reports that she is right-handed, therefore, she can still write, which is great, but typing is difficult. She denies any numbness or tingling in her hands. She reports that she has some weakness in her arm but nothing too significant. She denies any fever or chills.\n\nRegarding her epilepsy, she reports that she has not had any recent seizures. She reports that her last seizure was a year ago. She reports that she is still taking Keppra.\n\nRegarding her depression, she reports that she started therapy last year and she is trying to avoid medications for this problem. She reports that therapy has been helpful, but she still feels down and stressed. She denies suicidal and homicidal ideations.\n\nRegarding her peptic ulcer, she reports that she was dealing with a lot of stress last year. She then underwent an endoscopy which showed that she had an episode of gastritis. She was subsequently diagnosed with peptic ulcer disease and started Protonix. She reports that she has not had any issues with her ulcer since the procedure and everything has been good.\n\nThe patient denies chest pain, shortness of breath, abdominal pain, nausea, or vomiting. She reports that she does have a little bit of medial nasal congestion from allergies.\n\nREVIEW OF SYSTEMS\n\n• Ears, Nose, Mouth and Throat: Endorses medial nasal congestion from allergies.\n• Cardiovascular: Denies chest pain or dyspnea on exertion.\n• Respiratory: Denies shortness of breath.\n• Musculoskeletal: Endorses left elbow joint pain, swelling, and weakness.\n• Psychiatric: Endorses depression.\n\nPHYSICAL EXAMINATION\n\n• Musculoskeletal: Examination of the left elbow reveals erythema and edema. Pain to palpation of the left olecranon. Warm to palpation. Pain with flexion and extension. Palpable left radial pulse.\n\nRESULTS\n\nLeft arm x-ray does not reveal any evidence of elbow fracture.\n\nEGD revealed an episode of gastritis.\n\nASSESSMENT\n\nAnna Morris is a 26-year-old female with a past medical history significant for epilepsy, depression, and peptic ulcer disease who presents with some joint pain.\n\nPLAN\n\nLeft elbow pain.\n• Medical Reasoning: I believe she has left olecranon bursitis caused by repetitive trauma.\n• Medical Treatment: Initiate meloxicam 15 mg once daily.\n• Patient Education and Counseling: I encouraged the patient to use a pillow to rest her arm on. She may also ice the area.\n\nEpilepsy.\n• Medical Reasoning: She has been doing well on Keppra and denies any recent seizures.\n• Medical Treatment: Continue Keppra 500 mg twice a day. This was refilled today.\n\nDepression.\n• Medical Reasoning: She reports doing well with therapy.\n• Medical Treatment: Initiate Lexapro 10 mg once daily.\n\nPeptic ulcer disease.\n• Medical Reasoning: Her recent endoscopy revealed gastritis\n• Medical Treatment: Continue Protonix 40 mg once daily before meals.\n\nPatient Agreements: The patient understands and agrees with the recommended medical treatment plan.\n", "output_kind": "pipeline", "performance_evaluation": false, "pipeline_status": "COMPLETE", "source": {"citation": "Yim et al. (2023). ACI-BENCH: a Novel Ambient Clinical Intelligence Dataset for Benchmarking Automatic Visit Note Generation. Scientific Data. CC BY 4.0.", "label": "ACI-BENCH Test · D2N130 · CC BY 4.0", "note_sha256": "ae4dcec541ee6e8ae7244d980f03356be3e98dc13a711c3813dd81c7005f9be9", "url": "https://github.com/wyim/aci-bench/blob/main/data/challenge_data/clinicalnlp_taskC_test2.csv"}, "title": "외래 방문 기록 (ACI-BENCH D2N130)"}, {"candidate_count": 100, "catalog": "ICD-10-CM FY2022 official titles (two codes from the April 2025 release) · 132-code benchmark label list", "codes": [{"code": "F32.A", "evidence": [{"end": 201, "linked": true, "quote": "Bruce Howard is a 60-year-old male with a past medical history significant for depression, type 2 diabetes, and hypertension", "start": 77}], "item_ids": ["q01"], "title": "Depression, unspecified"}, {"code": "E11.9", "evidence": [{"end": 201, "linked": true, "quote": "Bruce Howard is a 60-year-old male with a past medical history significant for depression, type 2 diabetes, and hypertension", "start": 77}], "item_ids": ["q02"], "title": "Type 2 diabetes mellitus without complications"}, {"code": "I10", "evidence": [{"end": 1050, "linked": true, "quote": "He did buy a blood pressure cuff and is checking his blood pressure at home", "start": 975}], "item_ids": ["q13"], "title": "Essential (primary) hypertension"}, {"code": "R01.1", "evidence": [{"end": 1809, "linked": true, "quote": "Slight 2/6 systolic ejection murmur heard at the left base, heard previously", "start": 1733}], "item_ids": ["q06"], "title": "Cardiac murmur, unspecified"}, {"code": "R60.0", "evidence": [{"end": 1861, "linked": true, "quote": "1+ nonpitting edema bilaterally", "start": 1830}], "item_ids": ["q07"], "title": "Localized edema"}], "id": "pipeline-aci-bench-20261124-D2N177", "items": [{"candidates": [{"code": "F32.A", "rank": 1, "title": "Depression, unspecified"}, {"code": "G47.00", "rank": 6, "title": "Insomnia, unspecified"}, {"code": "R51.9", "rank": 38, "title": "Headache, unspecified"}, {"code": "M54.50", "rank": 40, "title": "Low back pain, unspecified"}, {"code": "R42", "rank": 84, "title": "Dizziness and giddiness"}], "concept": "Depression", "evidence": [{"end": 201, "linked": true, "quote": "Bruce Howard is a 60-year-old male with a past medical history significant for depression, type 2 diabetes, and hypertension", "start": 77}], "id": "q01", "query": "Depression, unspecified", "tags": []}, {"candidates": [{"code": "E11.9", "rank": 3, "title": "Type 2 diabetes mellitus without complications"}, {"code": "E11.65", "rank": 5, "title": "Type 2 diabetes mellitus with hyperglycemia"}, {"code": "M81.0", "rank": 74, "title": "Age-related osteoporosis without current pathological fracture"}, {"code": "H35.3211", "rank": 78, "title": "Exudative age-related macular degeneration, right eye, with active choroidal neovascularization"}, {"code": "E10.9", "rank": 85, "title": "Type 1 diabetes mellitus without complications"}], "concept": "Type 2 Diabetes", "evidence": [{"end": 201, "linked": true, "quote": "Bruce Howard is a 60-year-old male with a past medical history significant for depression, type 2 diabetes, and hypertension", "start": 77}], "id": "q02", "query": "Type 2 diabetes mellitus", "tags": []}, {"candidates": [{"code": "I13.0", "rank": 44, "title": "Hypertensive heart and chronic kidney disease with heart failure and stage 1 through stage 4 chronic kidney disease, or unspecified chronic kidney disease"}, {"code": "E78.00", "rank": 75, "title": "Pure hypercholesterolemia, unspecified"}], "concept": "Hypertension", "evidence": [{"end": 201, "linked": true, "quote": "Bruce Howard is a 60-year-old male with a past medical history significant for depression, type 2 diabetes, and hypertension", "start": 77}], "id": "q03", "query": "Essential hypertension", "tags": []}, {"candidates": [{"code": "Z98.890", "rank": 48, "title": "Other specified postprocedural states"}, {"code": "M54.9", "rank": 50, "title": "Dorsalgia, unspecified"}, {"code": "R10.9", "rank": 52, "title": "Unspecified abdominal pain"}, {"code": "J06.9", "rank": 67, "title": "Acute upper respiratory infection, unspecified"}, {"code": "G43.909", "rank": 77, "title": "Migraine, unspecified, not intractable, without status migrainosus"}], "concept": "Anxiety", "evidence": [{"end": 413, "linked": true, "quote": "He experienced a lot of anxiety while getting ready for Thanksgiving", "start": 345}], "id": "q04", "query": "Anxiety, unspecified", "tags": ["uncertain"]}, {"candidates": [{"code": "E11.51", "rank": 16, "title": "Type 2 diabetes mellitus with diabetic peripheral angiopathy without gangrene"}, {"code": "E11.22", "rank": 20, "title": "Type 2 diabetes mellitus with diabetic chronic kidney disease"}, {"code": "E11.621", "rank": 21, "title": "Type 2 diabetes mellitus with foot ulcer"}], "concept": "Elevated Hemoglobin A1c", "evidence": [{"end": 1950, "linked": true, "quote": "Diabetic labs revealed an elevated hemoglobin A1c of 8", "start": 1896}], "id": "q05", "query": "Elevated hemoglobin A1c", "tags": []}, {"candidates": [{"code": "R01.1", "rank": 2, "title": "Cardiac murmur, unspecified"}, {"code": "I05.1", "rank": 9, "title": "Rheumatic mitral insufficiency"}, {"code": "I25.10", "rank": 14, "title": "Atherosclerotic heart disease of native coronary artery without angina pectoris"}, {"code": "I50.21", "rank": 27, "title": "Acute systolic (congestive) heart failure"}, {"code": "I49.3", "rank": 64, "title": "Ventricular premature depolarization"}], "concept": "Systolic Ejection Murmur", "evidence": [{"end": 1809, "linked": true, "quote": "Slight 2/6 systolic ejection murmur heard at the left base, heard previously", "start": 1733}], "id": "q06", "query": "Systolic ejection murmur", "tags": []}, {"candidates": [{"code": "I50.9", "rank": 4, "title": "Heart failure, unspecified"}, {"code": "R60.0", "rank": 10, "title": "Localized edema"}, {"code": "E03.9", "rank": 13, "title": "Hypothyroidism, unspecified"}, {"code": "N05.9", "rank": 15, "title": "Unspecified nephritic syndrome with unspecified morphologic changes"}, {"code": "I73.9", "rank": 24, "title": "Peripheral vascular disease, unspecified"}], "concept": "Nonpitting Edema", "evidence": [{"end": 1861, "linked": true, "quote": "1+ nonpitting edema bilaterally", "start": 1830}], "id": "q07", "query": "Edema, bilateral, nonpitting", "tags": []}, {"candidates": [{"code": "K59.09", "rank": 18, "title": "Other constipation"}, {"code": "R10.811", "rank": 33, "title": "Right upper quadrant abdominal tenderness"}, {"code": "K27.9", "rank": 34, "title": "Peptic ulcer, site unspecified, unspecified as acute or chronic, without hemorrhage or perforation"}, {"code": "K58.9", "rank": 39, "title": "Irritable bowel syndrome without diarrhea"}, {"code": "E78.5", "rank": 42, "title": "Hyperlipidemia, unspecified"}], "concept": "Dietary Indiscretion", "evidence": [{"end": 863, "linked": true, "quote": "He notes some dietary indiscretion with Thanksgiving", "start": 811}], "id": "q08", "query": "Dietary indiscretion", "tags": []}, {"candidates": [{"code": "G31.84", "rank": 28, "title": "Mild cognitive impairment, so stated"}, {"code": "M51.16", "rank": 95, "title": "Intervertebral disc disorders with radiculopathy, lumbar region"}], "concept": "Depression History", "evidence": [{"end": 166, "linked": true, "quote": "past medical history significant for depression", "start": 119}], "id": "q09", "query": "Depression, history", "tags": ["history"]}, {"candidates": [{"code": "L40.50", "rank": 81, "title": "Arthropathic psoriasis, unspecified"}], "concept": "Type 2 Diabetes History", "evidence": [{"linked": false, "quote": "past medical history significant for type 2 diabetes"}], "id": "q10", "query": "Type 2 diabetes mellitus, history", "tags": ["history"]}, {"candidates": [{"code": "N18.30", "rank": 11, "title": "Chronic kidney disease, stage 3 unspecified"}, {"code": "I11.0", "rank": 23, "title": "Hypertensive heart disease with heart failure"}, {"code": "J44.9", "rank": 96, "title": "Chronic obstructive pulmonary disease, unspecified"}], "concept": "Hypertension History", "evidence": [{"linked": false, "quote": "past medical history significant for hypertension"}], "id": "q11", "query": "Hypertension, history", "tags": ["history"]}, {"candidates": [{"code": "I1A.0", "rank": 7, "title": "Resistant hypertension"}, {"code": "Z94.0", "rank": 73, "title": "Kidney transplant status"}], "concept": "Compliance with Lisinopril", "evidence": [{"end": 973, "linked": true, "quote": "He is compliant with lisinopril", "start": 942}], "id": "q12", "query": "Compliance with antihypertensive medication", "tags": []}, {"candidates": [{"code": "I10", "rank": 8, "title": "Essential (primary) hypertension"}, {"code": "G56.01", "rank": 90, "title": "Carpal tunnel syndrome, right upper limb"}, {"code": "G56.00", "rank": 91, "title": "Carpal tunnel syndrome, unspecified upper limb"}, {"code": "G56.03", "rank": 93, "title": "Carpal tunnel syndrome, bilateral upper limbs"}], "concept": "Blood Pressure Cuff Use", "evidence": [{"end": 1050, "linked": true, "quote": "He did buy a blood pressure cuff and is checking his blood pressure at home", "start": 975}], "id": "q13", "query": "Blood pressure cuff, use", "tags": []}, {"candidates": [{"code": "M22.41", "rank": 17, "title": "Chondromalacia patellae, right knee"}, {"code": "M76.61", "rank": 19, "title": "Achilles tendinitis, right leg"}, {"code": "M22.2X1", "rank": 25, "title": "Patellofemoral disorders, right knee"}, {"code": "M77.11", "rank": 30, "title": "Lateral epicondylitis, right elbow"}, {"code": "S16.1XXA", "rank": 31, "title": "Strain of muscle, fascia and tendon at neck level, initial encounter"}], "concept": "Walks and Gardening", "evidence": [{"end": 567, "linked": true, "quote": "The patient and his wife began going on walks and gardening over the summer", "start": 492}], "id": "q14", "query": "Physical activity, recreational", "tags": []}, {"candidates": [{"code": "Z79.899", "rank": 12, "title": "Other long term (current) drug therapy"}, {"code": "J45.40", "rank": 22, "title": "Moderate persistent asthma, uncomplicated"}, {"code": "F10.90", "rank": 26, "title": "Alcohol use, unspecified, uncomplicated"}, {"code": "J30.9", "rank": 29, "title": "Allergic rhinitis, unspecified"}, {"code": "J45.20", "rank": 35, "title": "Mild intermittent asthma, uncomplicated"}], "concept": "Avoiding Medications", "evidence": [{"end": 752, "linked": true, "quote": "He has preferred to avoid medications in the past", "start": 703}], "id": "q15", "query": "Avoidance of medications", "tags": []}], "label_space": 132, "note": "CHIEF COMPLAINT\n\nFollow up of chronic problems.\n\nHISTORY OF PRESENT ILLNESS\n\nBruce Howard is a 60-year-old male with a past medical history significant for depression, type 2 diabetes, and hypertension who presents for follow up of his chronic problems.\n\nIn regards to his depression, the patient notes that it has been a crazy year and a half. He experienced a lot of anxiety while getting ready for Thanksgiving but it is starting to resolve now. He denies suicidal and homicidal ideation. The patient and his wife began going on walks and gardening over the summer and he notes good relief of his depression from this; however, the season has changed and he needs an alterative method of management. He has preferred to avoid medications in the past.\n\nThe patient is still taking metformin for his diabetes. He notes some dietary indiscretion with Thanksgiving but he is doing better with this now.\n\nIn terms of his hypertension, he notes he is compliant with lisinopril. He did buy a blood pressure cuff and is checking his blood pressure at home. His blood pressures have reportedly been good.\n\nHe denies chest pain, dyspnea, abdominal pain, hematochezia, or weight loss.\n\nREVIEW OF SYSTEMS\n\n• Constitutional: Denies weight loss.\n• Cardiovascular: Denies chest pain or dyspnea on exertion.\n• Respiratory: Denies shortness of breath.\n• Gastrointestinal: Denies hematochezia or abdominal pain.\n• Psychiatric: Endorses anxiety and depression.  Denies suicidal and homicidal ideations.\n\nPHYSICAL EXAMINATION\n\n• Constitutional: Well-developed, well-nourished, in no apparent distress.\n• Neck: No carotid bruits appreciable.\n• Respiratory: Lungs are clear to auscultation bilaterally. No wheezes, rales, or rhonchi.\n• Cardiovascular: Slight 2/6 systolic ejection murmur heard at the left base, heard previously.\n• Musculoskeletal: 1+ nonpitting edema bilaterally.\n\nRESULTS\n\nEKG was unremarkable.\n\nDiabetic labs revealed an elevated hemoglobin A1c of 8.\n\nASSESSMENT\n\nBruce Howard is a 60-year-old male with a past medical history significant for depression, type 2 diabetes, and hypertension who presents for follow up of his chronic problems.\n\nPLAN\n\nDepression.\n• Medical Reasoning: He has been doing well with going on morning walks; however, this has ended due to the cooler weather. He continues to decline the use of medications for this issue.\n• Medical Treatment: We will defer initiating medication at this time.\n• Specialist Referrals: I will refer him to psychiatry to engage in talk therapy.\n\nDiabetes type 2.\n• Medical Reasoning: The patient admits to recent dietary indiscretion. His most recent hemoglobin A1c was elevated at 8 percent. He is compliant with metformin.\n• Additional Testing: I will order a repeat hemoglobin A1c in the next couple of months. I will also order a lipid panel.\n• Medical Treatment: We will increase his metformin to 1000 mg twice a day.\n\nHypertension.\n• Medical Reasoning: He has been monitoring his blood pressure on a regular basis. Blood pressure is well controlled at this time. He has a systolic ejection murmur that continues to be heard on exam.\n• Additional Testing: I will order an echocardiogram to reassess the heart murmur.\n• Medical Treatment: He will continue lisinopril 20 mg daily.\n\nPatient Agreements: The patient understands and agrees with the recommended medical treatment plan.", "output_kind": "pipeline", "performance_evaluation": false, "pipeline_status": "COMPLETE", "source": {"citation": "Yim et al. (2023). ACI-BENCH: a Novel Ambient Clinical Intelligence Dataset for Benchmarking Automatic Visit Note Generation. Scientific Data. CC BY 4.0.", "label": "ACI-BENCH Test · D2N177 · CC BY 4.0", "note_sha256": "0099acc617bb7c733f42b43f71bfd1215d5043266c5478ffedf26b2b5818dc2e", "url": "https://github.com/wyim/aci-bench/blob/main/data/challenge_data/clef_taskC_test3.csv"}, "title": "외래 방문 기록 (ACI-BENCH D2N177)"}, {"candidate_count": 100, "catalog": "ICD-10-CM FY2022 official titles (two codes from the April 2025 release) · 132-code benchmark label list", "codes": [{"code": "G35", "evidence": [{"end": 205, "linked": true, "quote": "Jerry Nguyen a 54-year-old male with a past medical history significant for osteoporosis, and multiple sclerosis, who presents for an annual exam.", "start": 59}, {"end": 682, "linked": true, "quote": "Regarding his multiple sclerosis, he last saw the neurologist 6 months ago.", "start": 607}], "item_ids": ["q02"], "title": "Multiple sclerosis"}, {"code": "G47.00", "evidence": [{"end": 388, "linked": true, "quote": "The patient reports a lack of sleep.", "start": 352}, {"end": 1187, "linked": true, "quote": "Endorses insomnia.", "start": 1169}], "item_ids": ["q06"], "title": "Insomnia, unspecified"}, {"code": "M81.0", "evidence": [{"end": 205, "linked": true, "quote": "Jerry Nguyen a 54-year-old male with a past medical history significant for osteoporosis, and multiple sclerosis, who presents for an annual exam.", "start": 59}, {"end": 532, "linked": true, "quote": "For treatment of his osteoporosis, he is on Fosamax.", "start": 480}], "item_ids": ["q01"], "title": "Age-related osteoporosis without current pathological fracture"}, {"code": "M17.11", "evidence": [{"end": 2198, "linked": true, "quote": "Right knee arthritis.", "start": 2177}, {"end": 1520, "linked": true, "quote": "X-ray of the right knee demonstrates some arthritic changes.", "start": 1460}], "item_ids": ["q03"], "title": "Unilateral primary osteoarthritis, right knee"}], "id": "pipeline-aci-bench-20261124-D2N091", "items": [{"candidates": [{"code": "M81.0", "rank": 4, "title": "Age-related osteoporosis without current pathological fracture"}, {"code": "M54.50", "rank": 10, "title": "Low back pain, unspecified"}, {"code": "S82.61XA", "rank": 17, "title": "Displaced fracture of lateral malleolus of right fibula, initial encounter for closed fracture"}, {"code": "M51.9", "rank": 24, "title": "Unspecified thoracic, thoracolumbar and lumbosacral intervertebral disc disorder"}, {"code": "Z00.00", "rank": 33, "title": "Encounter for general adult medical examination without abnormal findings"}], "concept": "Osteoporosis", "evidence": [{"end": 205, "linked": true, "quote": "Jerry Nguyen a 54-year-old male with a past medical history significant for osteoporosis, and multiple sclerosis, who presents for an annual exam.", "start": 59}, {"end": 532, "linked": true, "quote": "For treatment of his osteoporosis, he is on Fosamax.", "start": 480}], "id": "q01", "query": "Osteoporosis", "tags": []}, {"candidates": [{"code": "G35", "rank": 1, "title": "Multiple sclerosis"}, {"code": "G50.0", "rank": 15, "title": "Trigeminal neuralgia"}, {"code": "G56.03", "rank": 18, "title": "Carpal tunnel syndrome, bilateral upper limbs"}, {"code": "R26.89", "rank": 20, "title": "Other abnormalities of gait and mobility"}, {"code": "G31.84", "rank": 26, "title": "Mild cognitive impairment, so stated"}], "concept": "Multiple Sclerosis", "evidence": [{"end": 205, "linked": true, "quote": "Jerry Nguyen a 54-year-old male with a past medical history significant for osteoporosis, and multiple sclerosis, who presents for an annual exam.", "start": 59}, {"end": 682, "linked": true, "quote": "Regarding his multiple sclerosis, he last saw the neurologist 6 months ago.", "start": 607}], "id": "q02", "query": "Multiple sclerosis", "tags": []}, {"candidates": [{"code": "M17.11", "rank": 3, "title": "Unilateral primary osteoarthritis, right knee"}, {"code": "M19.90", "rank": 6, "title": "Unspecified osteoarthritis, unspecified site"}, {"code": "M25.561", "rank": 7, "title": "Pain in right knee"}, {"code": "M06.9", "rank": 8, "title": "Rheumatoid arthritis, unspecified"}, {"code": "M22.41", "rank": 13, "title": "Chondromalacia patellae, right knee"}], "concept": "Right Knee Arthritis", "evidence": [{"end": 2198, "linked": true, "quote": "Right knee arthritis.", "start": 2177}, {"end": 1520, "linked": true, "quote": "X-ray of the right knee demonstrates some arthritic changes.", "start": 1460}], "id": "q03", "query": "Arthritis of right knee", "tags": []}, {"candidates": [{"code": "Z98.890", "rank": 9, "title": "Other specified postprocedural states"}, {"code": "M22.2X1", "rank": 11, "title": "Patellofemoral disorders, right knee"}, {"code": "Z98.89", "rank": 12, "title": "Other specified postprocedural states"}, {"code": "Z09", "rank": 14, "title": "Encounter for follow-up examination after completed treatment for conditions other than malignant neoplasm"}, {"code": "S83.421A", "rank": 19, "title": "Sprain of lateral collateral ligament of right knee, initial encounter"}], "concept": "Previous Right Knee Surgery", "evidence": [{"end": 897, "linked": true, "quote": "He does have some lingering issues with his right knee after previous surgery.", "start": 820}], "id": "q04", "query": "History of right knee surgery", "tags": ["history"]}, {"candidates": [{"code": "Z79.899", "rank": 5, "title": "Other long term (current) drug therapy"}, {"code": "K21.9", "rank": 21, "title": "Gastro-esophageal reflux disease without esophagitis"}, {"code": "M54.9", "rank": 22, "title": "Dorsalgia, unspecified"}, {"code": "G89.29", "rank": 28, "title": "Other chronic pain"}, {"code": "N62", "rank": 36, "title": "Hypertrophy of breast"}], "concept": "Long-Term Use of Fosamax", "evidence": [{"end": 532, "linked": true, "quote": "For treatment of his osteoporosis, he is on Fosamax.", "start": 480}, {"end": 1816, "linked": true, "quote": "Continue Fosamax 1 tab per week.", "start": 1784}], "id": "q05", "query": "Long term use of Fosamax", "tags": ["history"]}, {"candidates": [{"code": "G47.00", "rank": 2, "title": "Insomnia, unspecified"}, {"code": "F32.A", "rank": 16, "title": "Depression, unspecified"}, {"code": "F10.90", "rank": 27, "title": "Alcohol use, unspecified, uncomplicated"}, {"code": "I1A.0", "rank": 31, "title": "Resistant hypertension"}, {"code": "E03.9", "rank": 51, "title": "Hypothyroidism, unspecified"}], "concept": "Insomnia", "evidence": [{"end": 388, "linked": true, "quote": "The patient reports a lack of sleep.", "start": 352}, {"end": 1187, "linked": true, "quote": "Endorses insomnia.", "start": 1169}], "id": "q06", "query": "Insomnia", "tags": []}], "label_space": 132, "note": "CHIEF COMPLAINT\n\nAnnual exam.\n\nHISTORY OF PRESENT ILLNESS\n\nJerry Nguyen a 54-year-old male with a past medical history significant for osteoporosis, and multiple sclerosis, who presents for an annual exam.\n\nThe patient states he has been traveling all over the country. He notes it has been a stressful summer and adjusting to everything in the fall.\n\nThe patient reports a lack of sleep. He has tried melatonin, meditation, and stretching every morning, but nothing has helped.\n\nFor treatment of his osteoporosis, he is on Fosamax. He denies any issues with his joints. He denies any recent broken bones.\n\nRegarding his multiple sclerosis, he last saw the neurologist 6 months ago. He is taking his medication and denies any issues with this. Previously, he experienced right leg weakness, however, this has resolved.\n\nHe does have some lingering issues with his right knee after previous surgery, but nothing out of the ordinary.\n\nThe patient denies any chest pain or shortness of breath.\n\nREVIEW OF SYSTEMS\n\n• Cardiovascular: Denies chest pain or dyspnea.\n• Respiratory: Denies shortness of breath.\n• Musculoskeletal: Endorses right knee discomfort.\n• Neurological: Endorses insomnia.\n\nPHYSICAL EXAMINATION\n\n• Respiratory: Lungs are clear to auscultation bilaterally. No wheezes, rales, or rhonchi.\n• Musculoskeletal: Weakness in the lower extremities, 4/5 on the right and 3/5 on the left. Reflexes are good. Arthritic changes in the right knee.\n\nRESULTS\n\nX-ray of the right knee demonstrates some arthritic changes.\n\nASSESSMENT\n\nJerry Nguyen a 54-year-old male with a past medical history significant for osteoporosis, and multiple sclerosis, who presents for an annual exam.\n\nPLAN\n\nOsteoporosis.\n• Medical Reasoning: The patient is doing well with Fosamax.\n• Medical Treatment: Continue Fosamax 1 tab per week. Eleven refills were ordered today.\n\nMultiple Sclerosis.\n• Medical Reasoning: The patient is experiencing weakness of the bilateral lower extremities. He has been seeing his neurologist on a consistent basis and has been compliant with medication.\n• Medical Treatment: He will continue to follow up with his neurologist and comply with his medication regimen.\n\nRight knee arthritis.\n• Medical Reasoning: The patient recently underwent knee surgery. A recent right knee x-ray demonstrated some arthritic changes.\n\nPatient Agreements: The patient understands and agrees with the recommended medical treatment plan.\n", "output_kind": "pipeline", "performance_evaluation": false, "pipeline_status": "COMPLETE", "source": {"citation": "Yim et al. (2023). ACI-BENCH: a Novel Ambient Clinical Intelligence Dataset for Benchmarking Automatic Visit Note Generation. Scientific Data. CC BY 4.0.", "label": "ACI-BENCH Test · D2N091 · CC BY 4.0", "note_sha256": "1a35d881a9f83d9218f10af8c9fe505af32ac4f4876d226cc61b28bbb6d1a288", "url": "https://github.com/wyim/aci-bench/blob/main/data/challenge_data/clinicalnlp_taskB_test1.csv"}, "title": "외래 방문 기록 (ACI-BENCH D2N091)"}];</script>
+<script>
+(function () {
+  'use strict';
+
+  var EXAMPLES = window.ICD_EXAMPLES || [];
+  var TAG_LABEL = { negated: '부정', uncertain: '불확실', history: '과거력', family_history: '가족력' };
+  var state = { ex: null, active: null, decisions: {}, added: [], view: 'codes', openAlt: {} };
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined && text !== null) { e.textContent = text; }
+    return e;
+  }
+  function reduceMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+  function storeKey() { return 'icd-review:' + state.ex.id; }
+  function save() {
+    try {
+      window.localStorage.setItem(storeKey(), JSON.stringify({ decisions: state.decisions, added: state.added }));
+    } catch (e) { /* 저장이 안 되어도 화면은 그대로 동작한다 */ }
+  }
+  function load() {
+    try {
+      var raw = window.localStorage.getItem(storeKey());
+      if (!raw) { return; }
+      var obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        state.decisions = obj.decisions && typeof obj.decisions === 'object' ? obj.decisions : {};
+        state.added = Array.isArray(obj.added) ? obj.added : [];
+      }
+    } catch (e) { state.decisions = {}; state.added = []; }
+  }
+
+  function itemById(id) {
+    var items = state.ex.items;
+    for (var i = 0; i < items.length; i++) { if (items[i].id === id) { return items[i]; } }
+    return null;
+  }
+  function allCodes() {
+    // 모델 제안 코드 뒤에 검토자가 추가한 코드를 붙인다.
+    var out = [];
+    state.ex.codes.forEach(function (c) { out.push({ code: c.code, title: c.title, item_ids: c.item_ids || [], evidence: c.evidence || [], origin: 'model' }); });
+    state.added.forEach(function (a) { out.push({ code: a.code, title: a.title, item_ids: a.item_ids || [], evidence: [], origin: 'reviewer' }); });
+    return out;
+  }
+  function codeEntry(code) {
+    var list = allCodes();
+    for (var i = 0; i < list.length; i++) { if (list[i].code === code) { return list[i]; } }
+    return null;
+  }
+  function decisionOf(code) { return state.decisions[code] || 'pending'; }
+
+  function activeRefs() {
+    var refs = {};
+    var a = state.active;
+    if (!a) { return refs; }
+    if (a.type === 'code') {
+      refs['code:' + a.id] = true;
+      var entry = codeEntry(a.id);
+      if (entry) { entry.item_ids.forEach(function (q) { refs['item:' + q] = true; }); }
+    } else {
+      refs['item:' + a.id] = true;
+    }
+    return refs;
+  }
+
+  // ---------- 노트 ----------
+  function evidenceSpans() {
+    var spans = [];
+    state.ex.items.forEach(function (it) {
+      (it.evidence || []).forEach(function (ev) {
+        if (ev.linked) { (ev.spans || [ev]).forEach(function (sp) { spans.push({ start: sp.start, end: sp.end, ref: 'item:' + it.id }); }); }
+      });
+    });
+    state.ex.codes.forEach(function (c) {
+      (c.evidence || []).forEach(function (ev) {
+        if (ev.linked) { (ev.spans || [ev]).forEach(function (sp) { spans.push({ start: sp.start, end: sp.end, ref: 'code:' + c.code }); }); }
+      });
+    });
+    return spans;
+  }
+  function renderNote() {
+    var text = state.ex.note;
+    var spans = evidenceSpans();
+    var cuts = {};
+    cuts[0] = true; cuts[text.length] = true;
+    spans.forEach(function (s) { cuts[s.start] = true; cuts[s.end] = true; });
+    var pts = Object.keys(cuts).map(Number).sort(function (x, y) { return x - y; });
+    var body = $('note-body');
+    body.textContent = '';
+    for (var i = 0; i < pts.length - 1; i++) {
+      var a = pts[i], b = pts[i + 1];
+      if (b <= a) { continue; }
+      var refs = [];
+      for (var j = 0; j < spans.length; j++) {
+        if (spans[j].start <= a && spans[j].end >= b && refs.indexOf(spans[j].ref) === -1) { refs.push(spans[j].ref); }
+      }
+      var piece = text.slice(a, b);
+      if (!refs.length) {
+        body.appendChild(document.createTextNode(piece));
+      } else {
+        var m = el('mark', 'ev', piece);
+        m.setAttribute('data-refs', refs.join(' '));
+        m.setAttribute('data-start', String(a));
+        m.setAttribute('role', 'button');
+        m.tabIndex = 0;
+        body.appendChild(m);
+      }
+    }
+    paintNote();
+  }
+  function paintNote() {
+    var refs = activeRefs();
+    var hasActive = !!state.active;
+    var marks = $('note-body').querySelectorAll('mark.ev');
+    for (var i = 0; i < marks.length; i++) {
+      var list = (marks[i].getAttribute('data-refs') || '').split(' ');
+      var on = false;
+      for (var j = 0; j < list.length; j++) { if (refs[list[j]]) { on = true; break; } }
+      marks[i].classList.toggle('on', on);
+      marks[i].classList.toggle('dim', hasActive && !on);
+    }
+  }
+  function scrollNoteTo(start) {
+    var marks = $('note-body').querySelectorAll('mark.ev');
+    for (var i = 0; i < marks.length; i++) {
+      if (Number(marks[i].getAttribute('data-start')) >= start) {
+        marks[i].scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
+        return;
+      }
+    }
+  }
+  function scrollNoteToActive() {
+    var first = $('note-body').querySelector('mark.ev.on');
+    if (first) { first.scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' }); }
+  }
+  function onMarkActivate(mark) {
+    var list = (mark.getAttribute('data-refs') || '').split(' ');
+    var target = null;
+    for (var i = 0; i < list.length; i++) { if (list[i].indexOf('code:') === 0) { target = { type: 'code', id: list[i].slice(5) }; break; } }
+    if (!target && list.length) { target = { type: 'item', id: list[0].slice(5) }; }
+    if (!target) { return; }
+    setView(target.type === 'code' ? 'codes' : 'items');
+    setActive(target, false);
+    var card = document.querySelector('[data-card="' + target.type + ':' + cssEscape(target.id) + '"]');
+    if (card) { card.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' }); }
+  }
+  function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+
+  // ---------- 근거 인용 ----------
+  function quoteNode(ev) {
+    var q;
+    if (ev.linked) {
+      q = el('button', 'quote');
+      q.type = 'button';
+      q.addEventListener('click', function (e) { e.stopPropagation(); scrollNoteTo(ev.start); });
+    } else {
+      q = el('div', 'quote unlinked');
+    }
+    q.appendChild(el('span', 'quote-text', '“' + ev.quote + '”'));
+    q.appendChild(el('span', ev.linked ? 'chip' : 'chip warn', ev.linked ? '원문 연결' : '원문에서 찾지 못함'));
+    return q;
+  }
+
+  // ---------- 제안 코드 ----------
+  function renderCodes() {
+    var view = $('view-codes');
+    view.textContent = '';
+    var list = allCodes();
+    if (!list.length) { view.appendChild(el('p', 'meta', '제안된 코드가 없습니다.')); return; }
+    list.forEach(function (c) { view.appendChild(codeCard(c)); });
+  }
+  function codeCard(c) {
+    var d = decisionOf(c.code);
+    var isActive = state.active && state.active.type === 'code' && state.active.id === c.code;
+    var card = el('article', 'card' + (d !== 'pending' ? ' ' + d : '') + (isActive ? ' active' : ''));
+    card.setAttribute('data-card', 'code:' + c.code);
+
+    var head = el('button', 'card-head');
+    head.type = 'button';
+    head.setAttribute('aria-label', c.code + ' ' + c.title + ' 근거 보기');
+    head.appendChild(el('span', 'code', c.code));
+    head.appendChild(el('span', 'code-title', c.title));
+    head.appendChild(el('span', c.origin === 'model' ? 'chip' : 'chip ok', c.origin === 'model' ? '모델 제안' : '검토자 추가'));
+    head.addEventListener('click', function () { setActive({ type: 'code', id: c.code }, true); });
+    card.appendChild(head);
+
+    var concepts = c.item_ids.map(function (q) { var it = itemById(q); return it ? it.concept : q; });
+    if (concepts.length) {
+      var meta = el('p', 'meta');
+      meta.appendChild(document.createTextNode('추출 개념: '));
+      meta.appendChild(el('b', null, concepts.join(', ')));
+      card.appendChild(meta);
+    }
+    if (c.evidence.length) {
+      var qs = el('div', 'quotes');
+      c.evidence.forEach(function (ev) { qs.appendChild(quoteNode(ev)); });
+      card.appendChild(qs);
+    } else if (c.origin === 'reviewer') {
+      card.appendChild(el('p', 'meta', '검토자가 후보 목록에서 고른 코드입니다. 근거는 해당 개념의 인용을 따릅니다.'));
+    }
+
+    var actions = el('div', 'actions');
+    var acc = el('button', 'btn accept', '수락');
+    acc.type = 'button';
+    acc.setAttribute('aria-pressed', d === 'accepted' ? 'true' : 'false');
+    acc.addEventListener('click', function () { decide(c.code, d === 'accepted' ? 'pending' : 'accepted'); });
+    var rej = el('button', 'btn reject', '제외');
+    rej.type = 'button';
+    rej.setAttribute('aria-pressed', d === 'rejected' ? 'true' : 'false');
+    rej.addEventListener('click', function () { decide(c.code, d === 'rejected' ? 'pending' : 'rejected'); });
+    actions.appendChild(acc);
+    actions.appendChild(rej);
+
+    var nAlt = 0;
+    c.item_ids.forEach(function (q) { var it = itemById(q); if (it) { nAlt += (it.candidates || []).length; } });
+    if (nAlt) {
+      var open = !!state.openAlt[c.code];
+      var tog = el('button', 'btn link', open ? '후보 접기' : '다른 후보 보기 (' + nAlt + ')');
+      tog.type = 'button';
+      tog.setAttribute('aria-expanded', open ? 'true' : 'false');
+      tog.addEventListener('click', function () { state.openAlt[c.code] = !open; renderCodes(); });
+      actions.appendChild(tog);
+    }
+    if (c.origin === 'reviewer') {
+      var rm = el('button', 'btn link', '추가 취소');
+      rm.type = 'button';
+      rm.addEventListener('click', function () { removeAdded(c.code); });
+      actions.appendChild(rm);
+    }
+    card.appendChild(actions);
+
+    if (state.openAlt[c.code]) {
+      var alts = el('div', 'alts');
+      c.item_ids.forEach(function (q) {
+        var it = itemById(q);
+        if (!it) { return; }
+        alts.appendChild(el('p', 'alts-title', '“' + it.concept + '”의 후보 (검색어: ' + it.query + ')'));
+        alts.appendChild(candList(it, c.code));
+      });
+      card.appendChild(alts);
+    }
+    return card;
+  }
+  function candList(it, currentCode) {
+    var ul = el('ul', 'cand-list');
+    (it.candidates || []).forEach(function (cand) {
+      var present = !!codeEntry(cand.code);
+      var li = el('li', 'cand' + (present ? ' picked' : ''));
+      li.appendChild(el('span', 'rank', String(cand.rank)));
+      li.appendChild(el('span', 'ccode', cand.code));
+      li.appendChild(el('span', 'ctitle', cand.title));
+      if (present) {
+        li.appendChild(el('span', 'chip', cand.code === currentCode ? '이 코드' : '목록에 있음'));
+      } else {
+        var box = el('span', 'actions');
+        var add = el('button', 'btn', '추가');
+        add.type = 'button';
+        add.setAttribute('aria-label', cand.code + ' 추가');
+        add.addEventListener('click', function () { addCode(cand, it.id, null); });
+        box.appendChild(add);
+        if (currentCode) {
+          var swap = el('button', 'btn', '교체');
+          swap.type = 'button';
+          swap.setAttribute('aria-label', currentCode + '를 ' + cand.code + '로 교체');
+          swap.addEventListener('click', function () { addCode(cand, it.id, currentCode); });
+          box.appendChild(swap);
+        }
+        li.appendChild(box);
+      }
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  // ---------- 추출 개념과 후보 ----------
+  function renderItems() {
+    var view = $('view-items');
+    view.textContent = '';
+    state.ex.items.forEach(function (it) {
+      var isActive = state.active && state.active.type === 'item' && state.active.id === it.id;
+      var card = el('article', 'card' + (isActive ? ' active' : ''));
+      card.setAttribute('data-card', 'item:' + it.id);
+      var head = el('button', 'card-head');
+      head.type = 'button';
+      head.appendChild(el('span', 'code', it.id));
+      head.appendChild(el('span', 'code-title', it.concept));
+      (it.tags || []).forEach(function (t) { head.appendChild(el('span', 'chip warn', TAG_LABEL[t] || t)); });
+      head.addEventListener('click', function () { setActive({ type: 'item', id: it.id }, true); });
+      card.appendChild(head);
+      var meta = el('p', 'meta');
+      meta.appendChild(document.createTextNode('검색어: '));
+      meta.appendChild(el('b', null, it.query));
+      card.appendChild(meta);
+      if ((it.evidence || []).length) {
+        var qs = el('div', 'quotes');
+        it.evidence.forEach(function (ev) { qs.appendChild(quoteNode(ev)); });
+        card.appendChild(qs);
+      }
+      if ((it.candidates || []).length) {
+        var alts = el('div', 'alts');
+        alts.appendChild(el('p', 'alts-title', '후보 ' + it.candidates.length + '개 (재순위 점수 순)'));
+        alts.appendChild(candList(it, null));
+        card.appendChild(alts);
+      }
+      view.appendChild(card);
+    });
+  }
+
+  // ---------- 요약 ----------
+  function renderStages() {
+    var ex = state.ex;
+    var itemQuotes = 0, itemLinked = 0, candTotal = 0, distinct = {}, codeWithConcept = 0, perItem = 0;
+    ex.items.forEach(function (it) {
+      (it.evidence || []).forEach(function (ev) { itemQuotes++; if (ev.linked) { itemLinked++; } });
+      var n = (it.candidates || []).length;
+      candTotal += n;
+      if (n > perItem) { perItem = n; }
+      (it.candidates || []).forEach(function (c) { distinct[c.code] = true; });
+    });
+    ex.codes.forEach(function (c) { if ((c.item_ids || []).length) { codeWithConcept++; } });
+    var rows = [
+      ['1단계 · 개념 추출', '개념 ' + ex.items.length + '개', '인용 ' + itemQuotes + '개 중 ' + itemLinked + '개가 원문에 연결됨'],
+      ['2단계 · 후보 검색', '후보 ' + ex.candidate_count + '개', '개념마다 최대 ' + perItem + '개 표시, ' + ex.label_space + '개 라벨 목록에서 검색'],
+      ['3단계 · 코드 선택', '제안 코드 ' + ex.codes.length + '개', '코드 ' + ex.codes.length + '개 중 ' + codeWithConcept + '개가 검색을 거쳐 추출 개념과 연결됨']
+    ];
+    var ol = $('stages');
+    ol.textContent = '';
+    rows.forEach(function (r) {
+      var li = el('li', 'stage');
+      li.appendChild(el('span', 'stage-name', r[0]));
+      li.appendChild(el('span', 'stage-main', r[1]));
+      li.appendChild(el('span', 'stage-sub', r[2]));
+      ol.appendChild(li);
+    });
+  }
+  function renderCounts() {
+    var acc = 0, rej = 0, pen = 0;
+    allCodes().forEach(function (c) {
+      var d = decisionOf(c.code);
+      if (d === 'accepted') { acc++; } else if (d === 'rejected') { rej++; } else { pen++; }
+    });
+    var box = $('counts');
+    box.textContent = '';
+    box.appendChild(el('span', 'chip ok', '수락 ' + acc));
+    box.appendChild(el('span', 'chip no', '제외 ' + rej));
+    box.appendChild(el('span', 'chip', '미검토 ' + pen));
+  }
+
+  // ---------- 동작 ----------
+  function setActive(target, scrollNote) {
+    var same = state.active && target && state.active.type === target.type && state.active.id === target.id;
+    state.active = same && scrollNote ? null : target;
+    renderCodes();
+    renderItems();
+    paintNote();
+    if (state.active && scrollNote) { scrollNoteToActive(); }
+  }
+  function decide(code, value) {
+    if (value === 'pending') { delete state.decisions[code]; } else { state.decisions[code] = value; }
+    save();
+    renderCodes();
+    renderCounts();
+  }
+  function addCode(cand, itemId, replaceCode) {
+    if (!codeEntry(cand.code)) {
+      state.added.push({ code: cand.code, title: cand.title, item_ids: [itemId] });
+      state.decisions[cand.code] = 'accepted';
+    }
+    if (replaceCode) { state.decisions[replaceCode] = 'rejected'; }
+    save();
+    renderCodes();
+    renderItems();
+    renderCounts();
+  }
+  function removeAdded(code) {
+    state.added = state.added.filter(function (a) { return a.code !== code; });
+    delete state.decisions[code];
+    delete state.openAlt[code];
+    if (state.active && state.active.type === 'code' && state.active.id === code) { state.active = null; }
+    save();
+    renderCodes();
+    renderItems();
+    renderCounts();
+    paintNote();
+  }
+  function setView(name) {
+    state.view = name;
+    var codes = name === 'codes';
+    $('view-codes').hidden = !codes;
+    $('view-items').hidden = codes;
+    $('tab-codes').setAttribute('aria-selected', codes ? 'true' : 'false');
+    $('tab-items').setAttribute('aria-selected', codes ? 'false' : 'true');
+  }
+  function copyText() {
+    var lines = [];
+    allCodes().forEach(function (c) { if (decisionOf(c.code) === 'accepted') { lines.push(c.code + '\t' + c.title); } });
+    return lines.join('\n');
+  }
+  function onCopy() {
+    var text = copyText();
+    var status = $('copy-status');
+    var fb = $('copy-fallback');
+    if (!text) { status.textContent = '수락한 코드가 없습니다.'; return; }
+    function fallback() {
+      fb.hidden = false;
+      fb.value = text;
+      fb.focus();
+      fb.select();
+      status.textContent = '아래 목록을 직접 복사하세요.';
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        fb.hidden = true;
+        status.textContent = '수락한 코드 ' + text.split('\n').length + '개를 복사했습니다.';
+      }, fallback);
+    } else {
+      fallback();
+    }
+  }
+  function onReset() {
+    state.decisions = {};
+    state.added = [];
+    state.openAlt = {};
+    state.active = null;
+    $('copy-status').textContent = '';
+    $('copy-fallback').hidden = true;
+    save();
+    renderAll();
+  }
+
+  function renderAll() {
+    renderStages();
+    renderNote();
+    renderCodes();
+    renderItems();
+    renderCounts();
+  }
+  function loadExample(idx) {
+    state.ex = EXAMPLES[idx];
+    state.active = null;
+    state.decisions = {};
+    state.added = [];
+    state.openAlt = {};
+    load();
+    var ex = state.ex;
+    $('note-title').textContent = ex.title || '노트';
+    $('note-source').textContent = ex.source && ex.source.label ? ex.source.label : '';
+    $('mock-banner').hidden = ex.output_kind !== 'mock';
+    var exButtons = $('example-buttons').querySelectorAll('.ex-btn');
+    for (var bi = 0; bi < exButtons.length; bi++) {
+      exButtons[bi].setAttribute('aria-pressed', Number(exButtons[bi].getAttribute('data-example')) === idx ? 'true' : 'false');
+    }
+    var foot = $('foot');
+    foot.textContent = '';
+    if (ex.source && ex.source.citation) {
+      foot.appendChild(document.createTextNode('노트 출처: ' + ex.source.citation + ' '));
+      if (ex.source.url) {
+        var a = el('a', null, ex.source.url);
+        a.href = ex.source.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        foot.appendChild(a);
+      }
+    }
+    if (ex.catalog) { foot.appendChild(document.createTextNode(' · 코드 제목: ' + ex.catalog)); }
+    $('copy-status').textContent = '';
+    $('copy-fallback').hidden = true;
+    setView('codes');
+    renderAll();
+  }
+
+  function start() {
+    var box = $('example-buttons');
+    if (!EXAMPLES.length) {
+      $('view-codes').appendChild(el('p', 'meta', '표시할 예시가 없습니다.'));
+      return;
+    }
+    EXAMPLES.forEach(function (ex, i) {
+      // 제목의 괄호 안 이름(예: ACI-BENCH D2N004)을 버튼 이름으로 쓴다.
+      var m = /\(([^)]+)\)/.exec(ex.title || '');
+      var b = el('button', 'ex-btn', m ? m[1] : (ex.title || ex.id));
+      b.type = 'button';
+      b.setAttribute('data-example', String(i));
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () { loadExample(i); });
+      box.appendChild(b);
+    });
+    $('tab-codes').addEventListener('click', function () { setView('codes'); });
+    $('tab-items').addEventListener('click', function () { setView('items'); });
+    $('copy-btn').addEventListener('click', onCopy);
+    $('reset-btn').addEventListener('click', onReset);
+    $('note-body').addEventListener('click', function (e) {
+      var m = e.target && e.target.closest ? e.target.closest('mark.ev') : null;
+      if (m) { onMarkActivate(m); }
+    });
+    $('note-body').addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.matches && e.target.matches('mark.ev')) {
+        e.preventDefault();
+        onMarkActivate(e.target);
+      }
+    });
+    loadExample(0);
+  }
+  start();
+})();
+</script>
+
+</body>
+</html>
