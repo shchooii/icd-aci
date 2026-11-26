@@ -1,0 +1,1175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}</style>
+</head>
+<body>
+<title>ICD Coding Evidence Review · Live</title>
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* layout: pipeline strip on top, note with highlighted evidence on the left, review panel on the right */
+:root {
+  --bg: #f1f4f3;
+  --surface: #ffffff;
+  --ink: #17211f;
+  --muted: #586764;
+  --line: #d3dbd8;
+  --chip: #e6edea;
+  --accent: #0b6a60;
+  --accent-ink: #ffffff;
+  --mark: #fdeaa6;
+  --mark-on: #f5b13c;
+  --ok: #1c7340;
+  --ok-bg: #e2f2e7;
+  --no: #a3302a;
+  --no-bg: #f8e5e3;
+  --warn: #7d5200;
+  --warn-bg: #fbefd0;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111615; --surface: #1a2120; --ink: #e5ebe9; --muted: #9aa8a4; --line: #2d3836; --chip: #232d2b;
+    --accent: #56c7b7; --accent-ink: #06211d; --mark: #574813; --mark-on: #a36f0c;
+    --ok: #72d398; --ok-bg: #163423; --no: #f08c84; --no-bg: #3a1c1a; --warn: #f0c56c; --warn-bg: #3a2e10;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111615; --surface: #1a2120; --ink: #e5ebe9; --muted: #9aa8a4; --line: #2d3836; --chip: #232d2b;
+  --accent: #56c7b7; --accent-ink: #06211d; --mark: #574813; --mark-on: #a36f0c;
+  --ok: #72d398; --ok-bg: #163423; --no: #f08c84; --no-bg: #3a1c1a; --warn: #f0c56c; --warn-bg: #3a2e10;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.55; }
+.app {
+  max-width: 1280px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+h1, h2, h3, p, ol, ul { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+button, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { display: flex; flex-direction: column; gap: 10px; }
+.top-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 62ch; }
+.ex-pick { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.ex-buttons { display: flex; flex-wrap: wrap; gap: 4px; }
+.ex-btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ex-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.top-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.lang-switch { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px; gap: 2px; }
+.top-tools .divider { width: 1px; align-self: stretch; background: var(--line); }
+.live-link { color: var(--accent); font-size: 13px; text-decoration: none; white-space: nowrap; }
+.live-link:hover { text-decoration: underline; }
+.lang-opt { border-radius: 4px; padding: 2px 9px; font-size: 12.5px; line-height: 1.6; color: var(--muted); text-decoration: none; }
+.lang-opt:hover { color: var(--ink); background: var(--chip); }
+.lang-opt[aria-current="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.banner { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); border-radius: 6px; padding: 8px 12px; font-size: 13.5px; }
+
+.stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stage-name { font-size: 12px; color: var(--muted); letter-spacing: 0.02em; }
+.stage-main { font-weight: 600; font-variant-numeric: tabular-nums; }
+.stage-sub { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.panel-head { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+h2 { font-size: 15px; font-weight: 600; }
+.src { font-size: 12.5px; color: var(--muted); }
+.note-panel { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.note-body {
+  padding: 14px 16px; white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: calc(100vh - 150px); overflow: auto; font-size: 14.5px; line-height: 1.7;
+}
+.legend { padding: 8px 16px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.swatch { display: inline-block; width: 22px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: baseline; }
+.swatch.m1 { background: var(--mark); }
+.swatch.m2 { background: var(--mark-on); }
+mark.ev { background: var(--mark); color: inherit; border-radius: 2px; cursor: pointer; padding: 1px 0; }
+mark.ev.dim { background: transparent; box-shadow: inset 0 -2px 0 var(--mark); }
+mark.ev.on { background: var(--mark-on); }
+
+.tabs { display: flex; gap: 4px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); }
+.tab { background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px; color: var(--muted); font-weight: 500; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.view { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; background: var(--surface); }
+.card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card.accepted { background: var(--ok-bg); }
+.card.rejected { background: var(--no-bg); }
+.card.rejected .code-title { text-decoration: line-through; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; background: transparent; border: 0; padding: 0; text-align: left; width: 100%; }
+.code { font-family: var(--font-mono); font-weight: 500; font-size: 16px; font-variant-numeric: tabular-nums; }
+.code-title { flex: 1 1 12ch; min-width: 0; }
+.chip { display: inline-block; background: var(--chip); color: var(--muted); border-radius: 999px; padding: 1px 8px; font-size: 12px; white-space: nowrap; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); }
+.chip.no { background: var(--no-bg); color: var(--no); }
+.chip.warn { background: var(--warn-bg); color: var(--warn); }
+.meta { font-size: 13px; color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 500; }
+.quotes { display: flex; flex-direction: column; gap: 4px; }
+.quote { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; border: 0; background: transparent; padding: 3px 0 3px 10px; border-left: 3px solid var(--mark-on); text-align: left; font-size: 13.5px; }
+.quote.unlinked { border-left-color: var(--line); cursor: default; }
+.quote-text { min-width: 0; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; font-size: 13.5px; }
+.btn[aria-pressed="true"].accept { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.btn[aria-pressed="true"].reject { background: var(--no); border-color: var(--no); color: var(--surface); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.link { border-color: transparent; background: transparent; color: var(--accent); padding-inline: 4px; }
+.alts { border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.alts-title { font-size: 12.5px; color: var(--muted); }
+.cand-list { display: flex; flex-direction: column; gap: 2px; }
+.cand { display: grid; grid-template-columns: 2.2em 7.5em minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; font-size: 13.5px; }
+.cand .rank { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.cand .ccode { font-family: var(--font-mono); }
+.cand .ctitle { min-width: 0; overflow-wrap: anywhere; }
+.cand.picked .ccode, .cand.picked .ctitle { font-weight: 600; }
+
+.summary { border-top: 1px solid var(--line); padding: 12px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.counts { display: flex; flex-wrap: wrap; gap: 6px; font-variant-numeric: tabular-nums; }
+.spacer { flex: 1 1 0; }
+.copy-status { font-size: 12.5px; color: var(--muted); order: 3; flex: 1 0 100%; text-align: right; }
+.copy-status:empty { display: none; }
+#copy-fallback { order: 4; }
+#copy-fallback { width: 100%; min-height: 90px; font-family: var(--font-mono); font-size: 12.5px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.foot { font-size: 12.5px; color: var(--muted); }
+.foot a { color: var(--accent); }
+
+@media (max-width: 860px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .note-panel { position: static; }
+  .note-body { max-height: 46vh; }
+  .stages { grid-template-columns: minmax(0, 1fr); }
+  .cand { grid-template-columns: 2.2em minmax(0, 1fr) auto; }
+  .cand .rank { grid-column: 1; grid-row: 1; }
+  .cand .ccode { grid-column: 2; grid-row: 1; }
+  .cand .ctitle { grid-column: 2 / 4; grid-row: 2; }
+  .cand > :last-child { grid-column: 3; grid-row: 1; justify-self: end; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+/* 실시간 입력과 진행 상황. 결과는 위의 검토 화면 스타일을 그대로 쓴다. */
+.nav-link { color: var(--accent); font-size: 13px; text-decoration: none; white-space: nowrap; }
+.nav-link:hover { text-decoration: underline; }
+.live-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.note { font-size: 13px; color: var(--muted); }
+.note.warn { color: var(--warn); }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+textarea#live-note {
+  width: 100%; min-height: 340px; resize: vertical; background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; font: inherit; font-size: 14.5px; line-height: 1.65;
+}
+.count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.count.over { color: var(--no); font-weight: 500; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px; gap: 2px; }
+.seg-opt { position: relative; }
+.seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.seg-opt span { display: block; border-radius: 4px; padding: 3px 10px; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.seg-opt input:checked + span { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.seg-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg-opt input:disabled + span { opacity: 0.55; cursor: not-allowed; }
+.empty { color: var(--muted); }
+.working { display: flex; flex-direction: column; gap: 10px; }
+.working-line { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--accent); animation: spin 0.9s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.elapsed { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 400; }
+.alert { background: var(--no-bg); color: var(--no); border: 1px solid var(--no); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.alert .hint { color: var(--ink); font-size: 13.5px; }
+.stage.running { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+.dot.ok { background: var(--ok); }
+.dot.no { background: var(--no); }
+.dot.warn { background: var(--warn); }
+#conn-chip { color: var(--ink); }
+@media (max-width: 860px) { textarea#live-note { min-height: 240px; } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="top-row">
+      <h1>ICD Coding Evidence Review · Live</h1>
+      <div class="top-tools">
+        <div class="ex-pick" role="group" aria-label="Examples"><span class="ex-buttons" id="live-examples"></span><span id="example-buttons" hidden></span></div>
+        <span class="divider" aria-hidden="true"></span>
+        <a class="nav-link" id="back-link" href="/index_en.html">Back to examples</a>
+        <span class="divider" aria-hidden="true"></span>
+        <nav class="lang-switch" aria-label="Language">
+          <a class="lang-opt" href="/demo" hreflang="ko" lang="ko">한국어</a>
+          <a class="lang-opt" href="/demo_en.html" hreflang="en" lang="en" aria-current="true">EN</a>
+        </nav>
+      </div>
+    </div>
+    <p class="lede">Paste a clinical note: the model extracts concepts and evidence, retrieves candidate codes, and suggests codes. The result is reviewed in the same way as on the example page.</p>
+    <p class="banner" id="live-notice" hidden></p>
+    <p class="banner" id="mock-banner" hidden>The concepts, candidates and suggested codes of this example were written by hand to show the layout. They are not pipeline output.</p>
+    <ol class="stages" id="stages"></ol>
+  </header>
+
+  <main class="cols">
+    <section class="panel input-panel" id="input-panel" aria-labelledby="input-h">
+      <div class="panel-head">
+        <h2 id="input-h">Enter a note</h2>
+        <p class="src">One note in English · Examples 1–3 are made-up notes · de-identified text only</p>
+      </div>
+      <div class="live-body">
+        <textarea id="live-note" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+          data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"
+          aria-labelledby="input-h" placeholder="Paste the note here."></textarea>
+        <div class="row">
+          <button class="btn primary" id="run-btn" type="button">Run</button>
+          <button class="btn" id="clear-btn" type="button">Clear</button>
+          <div class="seg" role="radiogroup" id="modes" aria-label="How to run">
+            <label class="seg-opt"><input type="radio" name="mode" value="full" checked><span>Same setting as the experiments</span></label>
+            <label class="seg-opt"><input type="radio" name="mode" value="fast"><span>Fast</span></label>
+          </div>
+          <span class="spacer"></span>
+          <span class="count" id="count"></span>
+        </div>
+        <p class="note" id="mode-sub"></p>
+        <p class="note warn" id="run-reason" hidden></p>
+        <p class="note">The note goes from this browser straight to the inference server and does not pass through the service that hosts this page. The server keeps neither the note nor the model response in files or logs.</p>
+      </div>
+    </section>
+
+    <section class="panel note-panel" hidden aria-label="Note text">
+      <div class="panel-head">
+        <h2 id="note-title">Note</h2>
+        <p class="src" id="note-source"></p>
+        <div><button class="btn link" id="new-note-btn" type="button">Enter another note</button></div>
+      </div>
+      <div class="note-body" id="note-body" tabindex="0"></div>
+      <p class="legend">
+        <span><span class="swatch m1"></span>Quoted as evidence</span>
+        <span><span class="swatch m2"></span>Evidence of the selected code</span>
+        <span>Click a highlighted span to go to its code.</span>
+      </p>
+    </section>
+
+    <section class="panel" id="live-side" aria-labelledby="side-h">
+      <div class="panel-head">
+        <h2 id="side-h">Progress</h2>
+        <p class="src">Three stages run one after another</p>
+      </div>
+      <div class="live-body" id="live-side-body" aria-live="polite"></div>
+    </section>
+
+    <section class="panel review-panel" hidden aria-label="Code review">
+      <div class="tabs" role="tablist" aria-label="View">
+        <button class="tab" role="tab" id="tab-codes" aria-controls="view-codes" aria-selected="true">Suggested codes</button>
+        <button class="tab" role="tab" id="tab-items" aria-controls="view-items" aria-selected="false">Concepts and candidates</button>
+      </div>
+      <div class="view" id="view-codes" role="tabpanel" aria-labelledby="tab-codes"></div>
+      <div class="view" id="view-items" role="tabpanel" aria-labelledby="tab-items" hidden></div>
+      <div class="summary">
+        <div class="counts" id="counts"></div>
+        <span class="spacer"></span>
+        <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
+        <button class="btn" id="reset-btn" type="button">Reset review</button>
+        <button class="btn primary" id="copy-btn" type="button">Copy accepted codes</button>
+        <textarea id="copy-fallback" readonly hidden aria-label="Accepted codes"></textarea>
+      </div>
+    </section>
+  </main>
+
+  <footer class="status-line" id="status">
+    <span class="dot" id="conn-dot" aria-hidden="true"></span>
+    <span id="conn-chip" role="status" aria-live="polite"></span>
+  </footer>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>window.ICD_EXAMPLES = [];</script>
+<script>
+(function () {
+  'use strict';
+
+  var EXAMPLES = window.ICD_EXAMPLES || [];
+  var TAG_LABEL = { negated: 'negated', uncertain: 'uncertain', history: 'history', family_history: 'family history' };
+  var state = { ex: null, active: null, decisions: {}, added: [], view: 'codes', openAlt: {} };
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined && text !== null) { e.textContent = text; }
+    return e;
+  }
+  function reduceMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+  function storeKey() { return 'icd-review:' + state.ex.id; }
+  function save() {
+    try {
+      window.localStorage.setItem(storeKey(), JSON.stringify({ decisions: state.decisions, added: state.added }));
+    } catch (e) { /* the page works without storage */ }
+  }
+  function load() {
+    try {
+      var raw = window.localStorage.getItem(storeKey());
+      if (!raw) { return; }
+      var obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        state.decisions = obj.decisions && typeof obj.decisions === 'object' ? obj.decisions : {};
+        state.added = Array.isArray(obj.added) ? obj.added : [];
+      }
+    } catch (e) { state.decisions = {}; state.added = []; }
+  }
+
+  function itemById(id) {
+    var items = state.ex.items;
+    for (var i = 0; i < items.length; i++) { if (items[i].id === id) { return items[i]; } }
+    return null;
+  }
+  function allCodes() {
+    // codes added by the reviewer follow the model's codes
+    var out = [];
+    state.ex.codes.forEach(function (c) { out.push({ code: c.code, title: c.title, item_ids: c.item_ids || [], evidence: c.evidence || [], origin: 'model' }); });
+    state.added.forEach(function (a) { out.push({ code: a.code, title: a.title, item_ids: a.item_ids || [], evidence: [], origin: 'reviewer' }); });
+    return out;
+  }
+  function codeEntry(code) {
+    var list = allCodes();
+    for (var i = 0; i < list.length; i++) { if (list[i].code === code) { return list[i]; } }
+    return null;
+  }
+  function decisionOf(code) { return state.decisions[code] || 'pending'; }
+
+  function activeRefs() {
+    var refs = {};
+    var a = state.active;
+    if (!a) { return refs; }
+    if (a.type === 'code') {
+      refs['code:' + a.id] = true;
+      var entry = codeEntry(a.id);
+      if (entry) { entry.item_ids.forEach(function (q) { refs['item:' + q] = true; }); }
+    } else {
+      refs['item:' + a.id] = true;
+    }
+    return refs;
+  }
+
+  // ---------- note ----------
+  function evidenceSpans() {
+    var spans = [];
+    state.ex.items.forEach(function (it) {
+      (it.evidence || []).forEach(function (ev) {
+        if (ev.linked) { (ev.spans || [ev]).forEach(function (sp) { spans.push({ start: sp.start, end: sp.end, ref: 'item:' + it.id }); }); }
+      });
+    });
+    state.ex.codes.forEach(function (c) {
+      (c.evidence || []).forEach(function (ev) {
+        if (ev.linked) { (ev.spans || [ev]).forEach(function (sp) { spans.push({ start: sp.start, end: sp.end, ref: 'code:' + c.code }); }); }
+      });
+    });
+    return spans;
+  }
+  function renderNote() {
+    var text = state.ex.note;
+    var spans = evidenceSpans();
+    var cuts = {};
+    cuts[0] = true; cuts[text.length] = true;
+    spans.forEach(function (s) { cuts[s.start] = true; cuts[s.end] = true; });
+    var pts = Object.keys(cuts).map(Number).sort(function (x, y) { return x - y; });
+    var body = $('note-body');
+    body.textContent = '';
+    for (var i = 0; i < pts.length - 1; i++) {
+      var a = pts[i], b = pts[i + 1];
+      if (b <= a) { continue; }
+      var refs = [];
+      for (var j = 0; j < spans.length; j++) {
+        if (spans[j].start <= a && spans[j].end >= b && refs.indexOf(spans[j].ref) === -1) { refs.push(spans[j].ref); }
+      }
+      var piece = text.slice(a, b);
+      if (!refs.length) {
+        body.appendChild(document.createTextNode(piece));
+      } else {
+        var m = el('mark', 'ev', piece);
+        m.setAttribute('data-refs', refs.join(' '));
+        m.setAttribute('data-start', String(a));
+        m.setAttribute('role', 'button');
+        m.tabIndex = 0;
+        body.appendChild(m);
+      }
+    }
+    paintNote();
+  }
+  function paintNote() {
+    var refs = activeRefs();
+    var hasActive = !!state.active;
+    var marks = $('note-body').querySelectorAll('mark.ev');
+    for (var i = 0; i < marks.length; i++) {
+      var list = (marks[i].getAttribute('data-refs') || '').split(' ');
+      var on = false;
+      for (var j = 0; j < list.length; j++) { if (refs[list[j]]) { on = true; break; } }
+      marks[i].classList.toggle('on', on);
+      marks[i].classList.toggle('dim', hasActive && !on);
+    }
+  }
+  function scrollNoteTo(start) {
+    var marks = $('note-body').querySelectorAll('mark.ev');
+    for (var i = 0; i < marks.length; i++) {
+      if (Number(marks[i].getAttribute('data-start')) >= start) {
+        marks[i].scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
+        return;
+      }
+    }
+  }
+  function scrollNoteToActive() {
+    var first = $('note-body').querySelector('mark.ev.on');
+    if (first) { first.scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' }); }
+  }
+  function onMarkActivate(mark) {
+    var list = (mark.getAttribute('data-refs') || '').split(' ');
+    var target = null;
+    for (var i = 0; i < list.length; i++) { if (list[i].indexOf('code:') === 0) { target = { type: 'code', id: list[i].slice(5) }; break; } }
+    if (!target && list.length) { target = { type: 'item', id: list[0].slice(5) }; }
+    if (!target) { return; }
+    setView(target.type === 'code' ? 'codes' : 'items');
+    setActive(target, false);
+    var card = document.querySelector('[data-card="' + target.type + ':' + cssEscape(target.id) + '"]');
+    if (card) { card.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' }); }
+  }
+  function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+
+  // ---------- evidence quotes ----------
+  function quoteNode(ev) {
+    var q;
+    if (ev.linked) {
+      q = el('button', 'quote');
+      q.type = 'button';
+      q.addEventListener('click', function (e) { e.stopPropagation(); scrollNoteTo(ev.start); });
+    } else {
+      q = el('div', 'quote unlinked');
+    }
+    q.appendChild(el('span', 'quote-text', '“' + ev.quote + '”'));
+    q.appendChild(el('span', ev.linked ? 'chip' : 'chip warn', ev.linked ? 'found in note' : 'not found in note'));
+    return q;
+  }
+
+  // ---------- suggested codes ----------
+  function renderCodes() {
+    var view = $('view-codes');
+    view.textContent = '';
+    var list = allCodes();
+    if (!list.length) { view.appendChild(el('p', 'meta', 'No codes were suggested.')); return; }
+    list.forEach(function (c) { view.appendChild(codeCard(c)); });
+  }
+  function codeCard(c) {
+    var d = decisionOf(c.code);
+    var isActive = state.active && state.active.type === 'code' && state.active.id === c.code;
+    var card = el('article', 'card' + (d !== 'pending' ? ' ' + d : '') + (isActive ? ' active' : ''));
+    card.setAttribute('data-card', 'code:' + c.code);
+
+    var head = el('button', 'card-head');
+    head.type = 'button';
+    head.setAttribute('aria-label', 'Show evidence for ' + c.code + ' ' + c.title);
+    head.appendChild(el('span', 'code', c.code));
+    head.appendChild(el('span', 'code-title', c.title));
+    head.appendChild(el('span', c.origin === 'model' ? 'chip' : 'chip ok', c.origin === 'model' ? 'Suggested' : 'Added by reviewer'));
+    head.addEventListener('click', function () { setActive({ type: 'code', id: c.code }, true); });
+    card.appendChild(head);
+
+    var concepts = c.item_ids.map(function (q) { var it = itemById(q); return it ? it.concept : q; });
+    if (concepts.length) {
+      var meta = el('p', 'meta');
+      meta.appendChild(document.createTextNode('Concept: '));
+      meta.appendChild(el('b', null, concepts.join(', ')));
+      card.appendChild(meta);
+    }
+    if (c.evidence.length) {
+      var qs = el('div', 'quotes');
+      c.evidence.forEach(function (ev) { qs.appendChild(quoteNode(ev)); });
+      card.appendChild(qs);
+    } else if (c.origin === 'reviewer') {
+      card.appendChild(el('p', 'meta', 'Chosen by the reviewer from the candidate list. Its evidence is that of the concept.'));
+    }
+
+    var actions = el('div', 'actions');
+    var acc = el('button', 'btn accept', 'Accept');
+    acc.type = 'button';
+    acc.setAttribute('aria-pressed', d === 'accepted' ? 'true' : 'false');
+    acc.addEventListener('click', function () { decide(c.code, d === 'accepted' ? 'pending' : 'accepted'); });
+    var rej = el('button', 'btn reject', 'Reject');
+    rej.type = 'button';
+    rej.setAttribute('aria-pressed', d === 'rejected' ? 'true' : 'false');
+    rej.addEventListener('click', function () { decide(c.code, d === 'rejected' ? 'pending' : 'rejected'); });
+    actions.appendChild(acc);
+    actions.appendChild(rej);
+
+    var nAlt = 0;
+    c.item_ids.forEach(function (q) { var it = itemById(q); if (it) { nAlt += (it.candidates || []).length; } });
+    if (nAlt) {
+      var open = !!state.openAlt[c.code];
+      var tog = el('button', 'btn link', open ? 'Hide candidates' : 'Other candidates (' + nAlt + ')');
+      tog.type = 'button';
+      tog.setAttribute('aria-expanded', open ? 'true' : 'false');
+      tog.addEventListener('click', function () { state.openAlt[c.code] = !open; renderCodes(); });
+      actions.appendChild(tog);
+    }
+    if (c.origin === 'reviewer') {
+      var rm = el('button', 'btn link', 'Remove');
+      rm.type = 'button';
+      rm.addEventListener('click', function () { removeAdded(c.code); });
+      actions.appendChild(rm);
+    }
+    card.appendChild(actions);
+
+    if (state.openAlt[c.code]) {
+      var alts = el('div', 'alts');
+      c.item_ids.forEach(function (q) {
+        var it = itemById(q);
+        if (!it) { return; }
+        alts.appendChild(el('p', 'alts-title', 'Candidates for “' + it.concept + '” (query: ' + it.query + ')'));
+        alts.appendChild(candList(it, c.code));
+      });
+      card.appendChild(alts);
+    }
+    return card;
+  }
+  function candList(it, currentCode) {
+    var ul = el('ul', 'cand-list');
+    (it.candidates || []).forEach(function (cand) {
+      var present = !!codeEntry(cand.code);
+      var li = el('li', 'cand' + (present ? ' picked' : ''));
+      li.appendChild(el('span', 'rank', String(cand.rank)));
+      li.appendChild(el('span', 'ccode', cand.code));
+      li.appendChild(el('span', 'ctitle', cand.title));
+      if (present) {
+        li.appendChild(el('span', 'chip', cand.code === currentCode ? 'this code' : 'in the list'));
+      } else {
+        var box = el('span', 'actions');
+        var add = el('button', 'btn', 'Add');
+        add.type = 'button';
+        add.setAttribute('aria-label', 'Add ' + cand.code);
+        add.addEventListener('click', function () { addCode(cand, it.id, null); });
+        box.appendChild(add);
+        if (currentCode) {
+          var swap = el('button', 'btn', 'Replace');
+          swap.type = 'button';
+          swap.setAttribute('aria-label', 'Replace ' + currentCode + ' with ' + cand.code);
+          swap.addEventListener('click', function () { addCode(cand, it.id, currentCode); });
+          box.appendChild(swap);
+        }
+        li.appendChild(box);
+      }
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  // ---------- concepts and candidates ----------
+  function renderItems() {
+    var view = $('view-items');
+    view.textContent = '';
+    state.ex.items.forEach(function (it) {
+      var isActive = state.active && state.active.type === 'item' && state.active.id === it.id;
+      var card = el('article', 'card' + (isActive ? ' active' : ''));
+      card.setAttribute('data-card', 'item:' + it.id);
+      var head = el('button', 'card-head');
+      head.type = 'button';
+      head.appendChild(el('span', 'code', it.id));
+      head.appendChild(el('span', 'code-title', it.concept));
+      (it.tags || []).forEach(function (t) { head.appendChild(el('span', 'chip warn', TAG_LABEL[t] || t)); });
+      head.addEventListener('click', function () { setActive({ type: 'item', id: it.id }, true); });
+      card.appendChild(head);
+      var meta = el('p', 'meta');
+      meta.appendChild(document.createTextNode('Query: '));
+      meta.appendChild(el('b', null, it.query));
+      card.appendChild(meta);
+      if ((it.evidence || []).length) {
+        var qs = el('div', 'quotes');
+        it.evidence.forEach(function (ev) { qs.appendChild(quoteNode(ev)); });
+        card.appendChild(qs);
+      }
+      if ((it.candidates || []).length) {
+        var alts = el('div', 'alts');
+        alts.appendChild(el('p', 'alts-title', it.candidates.length + ' candidates (by reranker score)'));
+        alts.appendChild(candList(it, null));
+        card.appendChild(alts);
+      }
+      view.appendChild(card);
+    });
+  }
+
+  // ---------- summary ----------
+  function renderStages() {
+    var ex = state.ex;
+    var itemQuotes = 0, itemLinked = 0, candTotal = 0, distinct = {}, codeWithConcept = 0, perItem = 0;
+    ex.items.forEach(function (it) {
+      (it.evidence || []).forEach(function (ev) { itemQuotes++; if (ev.linked) { itemLinked++; } });
+      var n = (it.candidates || []).length;
+      candTotal += n;
+      if (n > perItem) { perItem = n; }
+      (it.candidates || []).forEach(function (c) { distinct[c.code] = true; });
+    });
+    ex.codes.forEach(function (c) { if ((c.item_ids || []).length) { codeWithConcept++; } });
+    var rows = [
+      ['Step 1 · Concept extraction', ex.items.length + ' concepts', itemLinked + ' of ' + itemQuotes + ' quotes found in the note'],
+      ['Step 2 · Candidate retrieval', ex.candidate_count + ' candidates', 'up to ' + perItem + ' per concept shown, from the ' + ex.label_space + '-code label list'],
+      ['Step 3 · Code selection', ex.codes.length + ' suggested codes', codeWithConcept + ' of ' + ex.codes.length + ' linked to a concept through retrieval']
+    ];
+    var ol = $('stages');
+    ol.textContent = '';
+    rows.forEach(function (r) {
+      var li = el('li', 'stage');
+      li.appendChild(el('span', 'stage-name', r[0]));
+      li.appendChild(el('span', 'stage-main', r[1]));
+      li.appendChild(el('span', 'stage-sub', r[2]));
+      ol.appendChild(li);
+    });
+  }
+  function renderCounts() {
+    var acc = 0, rej = 0, pen = 0;
+    allCodes().forEach(function (c) {
+      var d = decisionOf(c.code);
+      if (d === 'accepted') { acc++; } else if (d === 'rejected') { rej++; } else { pen++; }
+    });
+    var box = $('counts');
+    box.textContent = '';
+    box.appendChild(el('span', 'chip ok', 'Accepted ' + acc));
+    box.appendChild(el('span', 'chip no', 'Rejected ' + rej));
+    box.appendChild(el('span', 'chip', 'Unreviewed ' + pen));
+  }
+
+  // ---------- actions ----------
+  function setActive(target, scrollNote) {
+    var same = state.active && target && state.active.type === target.type && state.active.id === target.id;
+    state.active = same && scrollNote ? null : target;
+    renderCodes();
+    renderItems();
+    paintNote();
+    if (state.active && scrollNote) { scrollNoteToActive(); }
+  }
+  function decide(code, value) {
+    if (value === 'pending') { delete state.decisions[code]; } else { state.decisions[code] = value; }
+    save();
+    renderCodes();
+    renderCounts();
+  }
+  function addCode(cand, itemId, replaceCode) {
+    if (!codeEntry(cand.code)) {
+      state.added.push({ code: cand.code, title: cand.title, item_ids: [itemId] });
+      state.decisions[cand.code] = 'accepted';
+    }
+    if (replaceCode) { state.decisions[replaceCode] = 'rejected'; }
+    save();
+    renderCodes();
+    renderItems();
+    renderCounts();
+  }
+  function removeAdded(code) {
+    state.added = state.added.filter(function (a) { return a.code !== code; });
+    delete state.decisions[code];
+    delete state.openAlt[code];
+    if (state.active && state.active.type === 'code' && state.active.id === code) { state.active = null; }
+    save();
+    renderCodes();
+    renderItems();
+    renderCounts();
+    paintNote();
+  }
+  function setView(name) {
+    state.view = name;
+    var codes = name === 'codes';
+    $('view-codes').hidden = !codes;
+    $('view-items').hidden = codes;
+    $('tab-codes').setAttribute('aria-selected', codes ? 'true' : 'false');
+    $('tab-items').setAttribute('aria-selected', codes ? 'false' : 'true');
+  }
+  function copyText() {
+    var lines = [];
+    allCodes().forEach(function (c) { if (decisionOf(c.code) === 'accepted') { lines.push(c.code + '\t' + c.title); } });
+    return lines.join('\n');
+  }
+  function onCopy() {
+    var text = copyText();
+    var status = $('copy-status');
+    var fb = $('copy-fallback');
+    if (!text) { status.textContent = 'No accepted codes.'; return; }
+    function fallback() {
+      fb.hidden = false;
+      fb.value = text;
+      fb.focus();
+      fb.select();
+      status.textContent = 'Copy the list below.';
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        fb.hidden = true;
+        status.textContent = 'Copied ' + text.split('\n').length + ' accepted codes.';
+      }, fallback);
+    } else {
+      fallback();
+    }
+  }
+  function onReset() {
+    state.decisions = {};
+    state.added = [];
+    state.openAlt = {};
+    state.active = null;
+    $('copy-status').textContent = '';
+    $('copy-fallback').hidden = true;
+    save();
+    renderAll();
+  }
+
+  function renderAll() {
+    renderStages();
+    renderNote();
+    renderCodes();
+    renderItems();
+    renderCounts();
+  }
+  function loadExample(idx) {
+    state.ex = EXAMPLES[idx];
+    state.active = null;
+    state.decisions = {};
+    state.added = [];
+    state.openAlt = {};
+    load();
+    var ex = state.ex;
+    $('note-title').textContent = ex.title || 'Note';
+    $('note-source').textContent = ex.source && ex.source.label ? ex.source.label : '';
+    $('mock-banner').hidden = ex.output_kind !== 'mock';
+    var exButtons = $('example-buttons').querySelectorAll('.ex-btn');
+    for (var bi = 0; bi < exButtons.length; bi++) {
+      exButtons[bi].setAttribute('aria-pressed', Number(exButtons[bi].getAttribute('data-example')) === idx ? 'true' : 'false');
+    }
+    var foot = $('foot');
+    foot.textContent = '';
+    if (ex.source && ex.source.citation) {
+      foot.appendChild(document.createTextNode('Note source: ' + ex.source.citation + ' '));
+      if (ex.source.url) {
+        var a = el('a', null, ex.source.url);
+        a.href = ex.source.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        foot.appendChild(a);
+      }
+    }
+    if (ex.catalog) { foot.appendChild(document.createTextNode(' · Code titles: ' + ex.catalog)); }
+    $('copy-status').textContent = '';
+    $('copy-fallback').hidden = true;
+    setView('codes');
+    renderAll();
+  }
+
+  function start() {
+    var box = $('example-buttons');
+    EXAMPLES.forEach(function (ex, i) {
+      var b = el('button', 'ex-btn', 'Example ' + (i + 1));
+      b.type = 'button';
+      b.setAttribute('data-example', String(i));
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () { loadExample(i); });
+      box.appendChild(b);
+    });
+    $('tab-codes').addEventListener('click', function () { setView('codes'); });
+    $('tab-items').addEventListener('click', function () { setView('items'); });
+    $('copy-btn').addEventListener('click', onCopy);
+    $('reset-btn').addEventListener('click', onReset);
+    $('note-body').addEventListener('click', function (e) {
+      var m = e.target && e.target.closest ? e.target.closest('mark.ev') : null;
+      if (m) { onMarkActivate(m); }
+    });
+    $('note-body').addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.matches && e.target.matches('mark.ev')) {
+        e.preventDefault();
+        onMarkActivate(e.target);
+      }
+    });
+    if (EXAMPLES.length) { loadExample(0); }
+    // 실시간 결과를 같은 화면 코드로 그린다. 이전 결과에 대한 검토 표시는 지운다.
+    window.ICD_REVIEW = { show: function (ex) {
+      try { window.localStorage.removeItem('icd-review:' + ex.id); } catch (e) { /* 저장이 막혀도 동작한다 */ }
+      EXAMPLES.length = 0;
+      EXAMPLES.push(ex);
+      loadExample(0);
+    } };
+  }
+  start();
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+
+  var L = {"locale": "en-US", "pageTitle": "ICD Coding Evidence Review · Live", "h1": "ICD Coding Evidence Review · Live", "lede": "Paste a clinical note: the model extracts concepts and evidence, retrieves candidate codes, and suggests codes. The result is reviewed in the same way as on the example page.", "back": "Back to examples", "examplesLabel": "Examples", "example": "Example {n}", "noteTitle": "Enter a note", "noteSub": "One note in English · Examples 1–3 are made-up notes · de-identified text only", "notePlaceholder": "Paste the note here.", "runBtn": "Run", "clearBtn": "Clear", "modeLegend": "How to run", "modeFull": "Same setting as the experiments", "modeFullSub": "The model reasons, then answers · usually 2–3 minutes, up to 5", "modeFast": "Fast", "modeFastSub": "No reasoning · tens of seconds · the accuracy of this setting was not checked", "privacy": "The note goes from this browser straight to the inference server and does not pass through the service that hosts this page. The server keeps neither the note nor the model response in files or logs.", "count": "{n} / {max} characters", "sideTitle": "Progress", "sideSub": "Three stages run one after another", "idle": "Pick an example or paste a note, then press Run. When it finishes, the evidence in the note, the candidates of each concept and the suggested codes appear as on the example page.", "newNoteBtn": "Enter another note", "noteTitleResult": "Note", "resultMeta": "Live result · model {model} · {s} s · {reasoning} · method {pipeline}", "metaReasoned": "with reasoning", "metaNoReasoning": "without reasoning", "stageName": {"extract": "Step 1 · Concept extraction", "retrieve": "Step 2 · Candidate retrieval", "generate": "Step 3 · Code selection"}, "stageSub": {"extract": "Concepts and quotations are taken from the note", "retrieve": "The 132 codes are re-ranked against the note and the queries", "generate": "Codes are chosen with the evidence and candidates as hints"}, "stageWaiting": "Waiting", "stageRunning": "Running", "stageDone": "Done · {s} s", "working": {"extract": "Extracting concepts and evidence", "retrieve": "Retrieving candidate codes", "generate": "Choosing codes"}, "sending": "Sending the note", "queued": "Waiting · {n} ahead", "elapsed": "{s} s elapsed", "wait": "Closing this tab loses the result.", "cancelBtn": "Cancel", "cancelled": "Cancelled.", "truncated": "A model response reached the length limit. The result may be incomplete.", "fastFellBack": "The model on the server did not accept the no-reasoning setting, so it reasoned.", "connChecking": "Checking the server", "connOk": "Server on", "connDown": "Server off", "connToken": "Server on · no access", "connOrigin": "Server on · this page is not allowed", "connNoModel": "Server on · models loading", "reasonOff": "The server is off, so nothing can run.", "reasonToken": "No access. Open the page again with the link the server gave you.", "reasonOrigin": "The server must allow this page address before you can run.", "reasonModel": "Run becomes available when the models are ready.", "errTitle": "No result was returned", "errStage": "Stopped at: {stage}", "err": {"NETWORK": "Cannot reach the server.", "NOTE_EMPTY": "The note is empty.", "NOTE_TOO_LONG": "The note is too long. The server accepts up to {max} characters.", "NOTE_TOO_LONG_FOR_RERANK": "The note is longer than the retrieval model accepts.", "UNAUTHORIZED": "No access.", "ORIGIN_NOT_ALLOWED": "This page address is not on the server allow list.", "QUEUE_FULL": "Many notes are waiting. Run it again in a moment.", "LLM_UNREACHABLE": "The server answered, but it could not reach the generation model.", "LLM_TIMEOUT": "The generation model did not answer within the time limit.", "LLM_HTTP_ERROR": "The generation model returned an error.", "LLM_BAD_RESPONSE": "The response of the generation model could not be read.", "RERANK_UNREACHABLE": "The retrieval model could not be reached.", "RERANK_TIMEOUT": "The retrieval model did not answer within the time limit.", "RERANK_HTTP_ERROR": "The retrieval model returned an error.", "RERANK_BAD_RESPONSE": "The response of the retrieval model could not be read.", "EXTRACT_NO_ANSWER": "The extraction answer had no list of concepts. Try running it again.", "EXTRACT_NO_ANSWER_TRUNCATED": "Extraction did not finish within the length limit. Shorten the note or run it again.", "NO_ANSWER": "The model response had no code list. Try running it again.", "NO_ANSWER_TRUNCATED": "The model did not finish its answer within the length limit. Shorten the note or run it again.", "JOB_NOT_FOUND": "The server no longer has this job. It may have been restarted.", "INTERNAL": "The server had an internal error.", "UNKNOWN": "An unknown error occurred."}, "foot": ""};
+  var SAMPLES = ["CHIEF COMPLAINT\n\nFollow-up of diabetes and high blood pressure.\n\nHISTORY OF PRESENT ILLNESS\n\nThe patient is a 58-year-old woman who returns for a routine follow-up. Her type 2 diabetes has been stable on metformin, with home fasting glucose readings between 110 and 130. She denies numbness or tingling in her feet and has no known kidney or eye complications. Her hypertension is treated with lisinopril, and home blood pressures run around 128/78. For the past two weeks she has had heartburn after meals and at night, without difficulty swallowing, weight loss, or black stools. She also reports three weeks of low back pain that started after gardening, without leg pain, numbness, or weakness.\n\nREVIEW OF SYSTEMS\n\nNegative for chest pain, shortness of breath, and dizziness.\n\nPHYSICAL EXAM\n\nBlood pressure 130/80. Heart with regular rate and rhythm, no murmur. Lungs clear. Abdomen soft and non-tender. Lumbar paraspinal muscles tender on palpation. Straight leg raise negative on both sides.\n\nRESULTS\n\nHemoglobin A1c 6.8%.\n\nASSESSMENT AND PLAN\n\n1. Type 2 diabetes mellitus without complications. Continue metformin 1000 mg twice daily. Repeat A1c in 3 months.\n2. Hypertension. Well controlled. Continue lisinopril 20 mg daily.\n3. Gastroesophageal reflux disease. Start omeprazole 20 mg daily for 8 weeks and avoid late meals.\n4. Low back pain. Likely muscular. Recommend stretching, heat, and ibuprofen as needed.", "CHIEF COMPLAINT\n\nRight knee pain.\n\nHISTORY OF PRESENT ILLNESS\n\nThe patient is a 34-year-old man who presents with right knee pain that began 3 days ago when he twisted the knee while playing soccer. He felt a pop on the inside of the knee and noticed swelling by the evening. He is able to bear weight but has pain with pivoting. He denies locking or giving way. Ibuprofen has given partial relief. He has a history of mild intermittent asthma and uses an albuterol inhaler a few times a year; he has had no recent wheezing.\n\nPHYSICAL EXAM\n\nRight knee: mild effusion. Tenderness over the medial joint line and along the medial collateral ligament. Pain and mild laxity with valgus stress at 30 degrees. Lachman and anterior drawer negative. McMurray negative. Neurovascularly intact distally.\nLungs: clear to auscultation bilaterally, no wheezes.\n\nRESULTS\n\nX-ray of the right knee, 3 views: no fracture or dislocation.\n\nASSESSMENT AND PLAN\n\n1. Sprain of the medial collateral ligament of the right knee, initial visit. Hinged knee brace for 4 weeks, ice, elevation, and ibuprofen 600 mg three times daily with food. Referral to physical therapy. Return in 4 weeks; MRI if not improving.\n2. Mild intermittent asthma, stable. Continue albuterol as needed.", "CHIEF COMPLAINT\n\nShortness of breath and leg swelling.\n\nHISTORY OF PRESENT ILLNESS\n\nThe patient is a 71-year-old woman with a history of atrial fibrillation, hyperlipidemia, and hypothyroidism who presents with 2 weeks of shortness of breath on exertion and swelling of both ankles. She sleeps on two pillows. She denies chest pain, palpitations, fever, or cough. She has been eating more salty food and missed several doses of her diuretic. She takes apixaban, metoprolol, atorvastatin, levothyroxine, and furosemide.\n\nPHYSICAL EXAM\n\nBlood pressure 138/84, heart rate 88 and irregularly irregular, oxygen saturation 95% on room air. Neck: jugular venous distention to 8 cm. Lungs: fine crackles at both bases. Heart: irregular rhythm, no murmur. Extremities: 2+ pitting edema of both ankles.\n\nRESULTS\n\nECG: atrial fibrillation with controlled ventricular rate. Chest X-ray: mild pulmonary vascular congestion. TSH within normal limits.\n\nASSESSMENT AND PLAN\n\n1. Heart failure with fluid overload. Increase furosemide to 40 mg twice daily for 5 days, then 40 mg daily. Low-salt diet and daily weights. Echocardiogram ordered.\n2. Atrial fibrillation, rate controlled. Continue metoprolol and apixaban.\n3. Hyperlipidemia. Continue atorvastatin.\n4. Hypothyroidism, TSH at goal. Continue levothyroxine."];
+
+  function fill(text, vars) {
+    return String(text).replace(/\{(\w+)\}/g, function (m, k) { return vars && vars[k] !== undefined ? vars[k] : m; });
+  }
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function num(n) { return Number(n).toLocaleString(L.locale); }
+
+  // ---- 저장: 접근 토큰, 서버 포트, 고른 실행 방식만. 판독문은 어디에도 저장하지 않는다.
+  var KEY_API = 'icdDemo.apiBase', KEY_TOKEN = 'icdDemo.token', KEY_MODE = 'icdDemo.mode';
+  function load(key) { try { return localStorage.getItem(key) || ''; } catch (e) { return ''; } }
+  function save(key, value) {
+    try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (e) { /* 저장이 막혀도 동작한다 */ }
+  }
+  var mem = { api: load(KEY_API), token: load(KEY_TOKEN), mode: load(KEY_MODE) };
+  // 서버가 토큰을 쓰도록 설정된 경우에만, 서버가 알려 준 링크(#token=...)로 한 번 열면 이 브라우저에 저장하고
+  // 주소창에서는 바로 지운다. 주소는 이 컴퓨터 안(127.0.0.1, localhost)만 받는다: 누가 만든 링크로
+  // 판독문이 다른 서버로 가는 일을 막기 위해서다. #reset 은 저장한 값을 지운다.
+  (function readLink() {
+    var hash = location.hash.replace(/^#/, '');
+    if (!hash) return;
+    var given = new URLSearchParams(hash), touched = false;
+    if (given.has('reset')) { mem.api = ''; mem.token = ''; save(KEY_API, ''); save(KEY_TOKEN, ''); touched = true; }
+    if (given.get('token')) { mem.token = given.get('token').trim(); save(KEY_TOKEN, mem.token); touched = true; }
+    var address = (given.get('api') || '').trim().replace(/\/+$/, '');
+    if (/^http:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?$/.test(address)) { mem.api = address; save(KEY_API, address); touched = true; }
+    if (touched && window.history && history.replaceState) history.replaceState(null, '', location.pathname + location.search);
+  })();
+  // HTTPS로 올린 페이지에서는 SSH 터널(127.0.0.1)로, 서버가 직접 내준 페이지에서는 같은 주소로 요청한다.
+  var DEFAULT_API = location.protocol === 'http:' ? location.origin : 'http://127.0.0.1:8765';
+  function apiBase() { return (mem.api || DEFAULT_API).replace(/\/+$/, ''); }
+
+  function api(method, path, body, timeoutMs) {
+    var ctrl = new AbortController();
+    var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs || 15000);
+    var headers = {};
+    if (mem.token) headers['Authorization'] = 'Bearer ' + mem.token;
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    return fetch(apiBase() + path, {
+      method: method, headers: headers, body: body === undefined ? undefined : JSON.stringify(body),
+      signal: ctrl.signal, mode: 'cors', cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        clearTimeout(timer);
+        return { status: res.status, ok: res.ok, data: data || {} };
+      });
+    }, function () {
+      clearTimeout(timer);
+      throw { code: 'NETWORK' };
+    });
+  }
+
+  var noteEl = $('live-note'), runBtn = $('run-btn'), sideEl = $('live-side-body'), countEl = $('count');
+  var maxChars = 20000;
+  var busy = false, runSeq = 0, jobId = null, startedAt = 0, tick = null, pollTimer = null, runMode = 'full';
+  var stageNames = ['extract', 'retrieve', 'generate'], stageStart = {}, stageDone = {}, stageNow = null;
+
+  // ---- 화면 전환: 입력(판독문 입력 + 진행 상황) / 결과(노트 원문 + 코드 검토)
+  var notePanel = document.querySelector('.note-panel'), reviewPanel = document.querySelector('.review-panel');
+  function setScreen(name) {
+    var result = name === 'result';
+    $('input-panel').hidden = result;
+    $('live-side').hidden = result;
+    notePanel.hidden = !result;
+    reviewPanel.hidden = !result;
+  }
+
+  // ---- 예시 1~3: 지어낸 판독문을 입력창에 넣는다
+  var exampleButtons = SAMPLES.map(function (text, i) {
+    var b = el('button', 'ex-btn', fill(L.example, { n: i + 1 }));
+    b.type = 'button';
+    b.id = 'ex-btn-' + i;
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', function () {
+      if (busy) return;
+      noteEl.value = text;
+      markExample(i);
+      setScreen('input');
+      paintStages();
+      showIdle();
+      updateCount();
+    });
+    $('live-examples').appendChild(b);
+    return b;
+  });
+  function markExample(which) {
+    exampleButtons.forEach(function (b, i) { b.setAttribute('aria-pressed', i === which ? 'true' : 'false'); });
+  }
+
+  // ---- 실행 방식
+  var modeInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="mode"]'));
+  function currentMode() {
+    for (var i = 0; i < modeInputs.length; i++) if (modeInputs[i].checked) return modeInputs[i].value;
+    return 'full';
+  }
+  function setMode(value) { modeInputs.forEach(function (input) { input.checked = input.value === value; }); }
+  function showModeNote() { $('mode-sub').textContent = currentMode() === 'fast' ? L.modeFastSub : L.modeFullSub; }
+  if (mem.mode === 'fast' || mem.mode === 'full') setMode(mem.mode);
+  showModeNote();
+  modeInputs.forEach(function (input) {
+    // 고른 방식은 이 브라우저에만 기억해 둔다.
+    input.addEventListener('change', function () { mem.mode = currentMode(); save(KEY_MODE, mem.mode); showModeNote(); });
+  });
+
+  // ---- 서버 상태: 맨 아래 한 줄. checking | ok | off | token | origin | model(모델 준비 중)
+  var conn = 'checking', recheckTimer = null, healthSeq = 0;
+  var CONN = {
+    checking: ['connChecking', ''], ok: ['connOk', 'ok'], off: ['connDown', 'no'],
+    token: ['connToken', 'warn'], origin: ['connOrigin', 'no'], model: ['connNoModel', 'warn']
+  };
+  var REASON = { off: 'reasonOff', token: 'reasonToken', origin: 'reasonOrigin', model: 'reasonModel' };
+  function setConn(state) {
+    conn = state;
+    $('conn-chip').textContent = L[CONN[state][0]];
+    $('conn-dot').className = 'dot' + (CONN[state][1] ? ' ' + CONN[state][1] : '');
+    var reason = $('run-reason');
+    reason.hidden = !REASON[state];
+    reason.textContent = REASON[state] ? L[REASON[state]] : '';
+    updateCount();
+  }
+  function scheduleRecheck() {
+    if (recheckTimer) clearTimeout(recheckTimer);
+    // 꺼져 있으면 10초마다, 켜져 있으면 30초마다 다시 확인해서 켜짐·꺼짐을 바로 보여 준다.
+    recheckTimer = setTimeout(function () {
+      if (document.hidden || busy) { scheduleRecheck(); return; }
+      checkHealth(true);
+    }, conn === 'ok' ? 30000 : 10000);
+  }
+  function checkHealth(quiet) {
+    var seq = ++healthSeq; // 늦게 도착한 예전 응답은 버린다
+    if (!quiet) setConn('checking');
+    return api('GET', '/api/health', undefined, 6000).then(function (r) {
+      if (seq !== healthSeq) return;
+      var d = r.data;
+      if (r.status === 403) { setConn('origin'); return; }
+      if (!r.ok || !d.ok) { setConn('off'); return; }
+      if (!d.authorized) { setConn('token'); return; }
+      if (d.max_note_chars) maxChars = d.max_note_chars;
+      if (Array.isArray(d.stages) && d.stages.length && !busy) {
+        var changed = d.stages.join() !== stageNames.join();
+        stageNames = d.stages;
+        if (changed && !$('input-panel').hidden) paintStages();
+      }
+      if (!mem.mode && !busy && (d.default_mode === 'fast' || d.default_mode === 'full')) { setMode(d.default_mode); showModeNote(); }
+      var ready = d.ready !== undefined ? d.ready : d.llm_ready;
+      setConn(ready ? 'ok' : 'model');
+    }, function () {
+      if (seq === healthSeq) setConn('off');
+    }).then(function () {
+      if (seq === healthSeq) scheduleRecheck();
+    });
+  }
+
+  // ---- 입력
+  function updateCount() {
+    var n = noteEl.value.length;
+    countEl.textContent = fill(L.count, { n: num(n), max: num(maxChars) });
+    countEl.className = 'count' + (n > maxChars ? ' over' : '');
+    runBtn.disabled = busy || !noteEl.value.trim() || n > maxChars || conn !== 'ok';
+  }
+
+  // ---- 단계 띠: 실행 중에는 진행 상황을, 결과가 오면 검토 화면이 실제 수치를 채운다
+  function paintStages() {
+    var ol = $('stages');
+    ol.textContent = '';
+    stageNames.forEach(function (name) {
+      var li = el('li', 'stage' + (name === stageNow ? ' running' : ''));
+      li.setAttribute('data-stage', name);
+      li.appendChild(el('span', 'stage-name', L.stageName[name] || name));
+      var state = stageDone[name] !== undefined ? fill(L.stageDone, { s: stageDone[name] }) : (name === stageNow ? L.stageRunning : L.stageWaiting);
+      li.appendChild(el('span', 'stage-main', state));
+      li.appendChild(el('span', 'stage-sub', L.stageSub[name] || ''));
+      ol.appendChild(li);
+    });
+  }
+  function enterStage(name) {
+    if (name === stageNow) return;
+    var now = Date.now();
+    if (stageNow) stageDone[stageNow] = Math.max(1, Math.round((now - stageStart[stageNow]) / 1000));
+    stageNow = name;
+    if (name) stageStart[name] = now;
+    paintStages();
+  }
+  function resetStages() { stageStart = {}; stageDone = {}; stageNow = null; paintStages(); }
+
+  // ---- 진행 상황 칸
+  function clearSide() { while (sideEl.firstChild) sideEl.removeChild(sideEl.firstChild); }
+  function showIdle(text) {
+    clearSide();
+    sideEl.appendChild(el('p', 'empty', text || L.idle));
+  }
+  function stopTimers() {
+    if (tick) { clearInterval(tick); tick = null; }
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+  }
+  function setBusy(on) {
+    busy = on;
+    sideEl.setAttribute('aria-busy', on ? 'true' : 'false');
+    noteEl.readOnly = on;
+    exampleButtons.forEach(function (b) { b.disabled = on; });
+    $('clear-btn').disabled = on;
+    modeInputs.forEach(function (input) { input.disabled = on; });
+    updateCount();
+  }
+  function showWorking(stageText) {
+    var line = $('working-stage');
+    if (line) { line.textContent = stageText; return; }
+    clearSide();
+    var box = el('div', 'working');
+    var row = el('div', 'working-line');
+    row.appendChild(el('span', 'spinner'));
+    var stage = el('span', '', stageText);
+    stage.id = 'working-stage';
+    row.appendChild(stage);
+    var elapsed = el('span', 'elapsed', '');
+    elapsed.id = 'working-elapsed';
+    row.appendChild(elapsed);
+    box.appendChild(row);
+    box.appendChild(el('p', 'note', (runMode === 'fast' ? L.modeFastSub : L.modeFullSub) + ' · ' + L.wait));
+    var actions = el('div', 'row');
+    var cancel = el('button', 'btn', L.cancelBtn);
+    cancel.type = 'button';
+    cancel.id = 'cancel-btn';
+    cancel.addEventListener('click', cancelRun);
+    actions.appendChild(cancel);
+    box.appendChild(actions);
+    sideEl.appendChild(box);
+  }
+  function showElapsed() {
+    var node = $('working-elapsed');
+    if (node) node.textContent = fill(L.elapsed, { s: Math.round((Date.now() - startedAt) / 1000) });
+  }
+  function showError(code, serverMessage, more) {
+    stopTimers();
+    setBusy(false);
+    var stopped = (more && more.stage) || stageNow;
+    stageNow = null;
+    paintStages();
+    setScreen('input');
+    clearSide();
+    var box = el('div', 'alert');
+    box.setAttribute('role', 'alert');
+    box.appendChild(el('strong', '', L.errTitle));
+    var text = L.err[code] ? fill(L.err[code], { max: num((more && more.max_note_chars) || maxChars) }) : (serverMessage || L.err.UNKNOWN);
+    box.appendChild(el('span', '', text));
+    if (stopped && L.stageName[stopped]) box.appendChild(el('span', 'hint', fill(L.errStage, { stage: L.stageName[stopped] })));
+    sideEl.appendChild(box);
+    if (code === 'NETWORK' || code === 'UNAUTHORIZED' || code === 'ORIGIN_NOT_ALLOWED' || /_UNREACHABLE$/.test(code) || code === 'JOB_NOT_FOUND') checkHealth(true);
+  }
+  function showResult(result) {
+    stopTimers();
+    setBusy(false);
+    stageNow = null;
+    // 기존 예시 화면과 같은 코드가 결과를 그린다.
+    window.ICD_REVIEW.show(result.example);
+    $('note-title').textContent = L.noteTitleResult;
+    $('note-source').textContent = fill(L.resultMeta, {
+      model: result.model, s: result.elapsed_s, pipeline: result.pipeline,
+      reasoning: result.reasoning_used ? L.metaReasoned : L.metaNoReasoning
+    });
+    var notice = $('live-notice');
+    var lines = [];
+    if (result.truncated) lines.push(L.truncated);
+    if (result.mode === 'fast' && result.reasoning_used) lines.push(L.fastFellBack);
+    notice.textContent = lines.join(' ');
+    notice.hidden = !lines.length;
+    setScreen('result');
+  }
+
+  // ---- 실행
+  function failFrom(r) {
+    var e = (r && r.data && r.data.error) || {};
+    showError(e.code || 'UNKNOWN', e.message, e);
+  }
+  function run() {
+    if (busy || conn !== 'ok' || !noteEl.value.trim()) return;
+    var seq = ++runSeq;
+    jobId = null;
+    startedAt = Date.now();
+    runMode = currentMode();
+    $('live-notice').hidden = true;
+    resetStages();
+    setBusy(true);
+    showWorking(L.sending);
+    tick = setInterval(showElapsed, 500);
+    api('POST', '/api/predict', { note: noteEl.value, mode: runMode }, 30000).then(function (r) {
+      if (seq !== runSeq) return;
+      if (r.status === 202 && r.data.job_id) { jobId = r.data.job_id; poll(seq, 0); }
+      else failFrom(r);
+    }, function () {
+      if (seq === runSeq) showError('NETWORK');
+    });
+  }
+  function poll(seq, misses) {
+    api('GET', '/api/jobs/' + encodeURIComponent(jobId), undefined, 15000).then(function (r) {
+      if (seq !== runSeq) return;
+      if (!r.ok) { failFrom(r); return; }
+      var status = r.data.status;
+      if (status === 'queued') {
+        showWorking(fill(L.queued, { n: r.data.ahead || 0 }));
+        pollTimer = setTimeout(function () { poll(seq, 0); }, 1000);
+      } else if (status === 'running') {
+        var stage = r.data.stage || stageNames[stageNames.length - 1];
+        enterStage(stage);
+        showWorking((stageNames.indexOf(stage) + 1) + '/' + stageNames.length + ' ' + (L.working[stage] || stage));
+        pollTimer = setTimeout(function () { poll(seq, 0); }, Date.now() - startedAt > 30000 ? 2000 : 1000);
+      } else if (status === 'done') {
+        showResult(r.data.result || {});
+      } else {
+        failFrom({ data: { error: r.data.error } });
+      }
+    }, function () {
+      if (seq !== runSeq) return;
+      // 잠깐 끊긴 것일 수 있으니 몇 번은 다시 묻는다.
+      if (misses < 4) pollTimer = setTimeout(function () { poll(seq, misses + 1); }, 2000);
+      else showError('NETWORK');
+    });
+  }
+  function cancelRun() {
+    var id = jobId;
+    runSeq++;
+    jobId = null;
+    stopTimers();
+    setBusy(false);
+    resetStages();
+    showIdle(L.cancelled);
+    if (id) api('DELETE', '/api/jobs/' + encodeURIComponent(id), undefined, 8000).catch(function () {});
+  }
+
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && !busy) checkHealth(true); });
+  noteEl.addEventListener('input', function () { markExample(-1); updateCount(); });
+  noteEl.addEventListener('keydown', function (ev) {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); run(); }
+  });
+  runBtn.addEventListener('click', run);
+  $('clear-btn').addEventListener('click', function () { noteEl.value = ''; markExample(-1); updateCount(); showIdle(); noteEl.focus(); });
+  $('new-note-btn').addEventListener('click', function () { setScreen('input'); resetStages(); showIdle(); noteEl.focus(); });
+
+  setScreen('input');
+  resetStages();
+  updateCount();
+  showIdle();
+  checkHealth();
+})();
+</script>
+
+
+</body>
+</html>

@@ -14,6 +14,11 @@
   to = "/demo.html"
   status = 200
 
+[[redirects]]
+  from = "/demo_en"
+  to = "/demo_en.html"
+  status = 200
+
 # 추론 서버용 코드는 사이트로 내보내지 않는다
 [[redirects]]
   from = "/server/*"

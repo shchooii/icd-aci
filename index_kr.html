@@ -170,7 +170,7 @@ mark.ev.on { background: var(--mark-on); }
     <div class="top-row">
       <h1>ICD 코딩 근거 검토</h1>
       <div class="top-tools">
-        <div class="ex-pick" role="group" aria-label="예시 노트"><span>예시 노트</span><span class="ex-buttons" id="example-buttons"></span></div>
+        <div class="ex-pick" role="group" aria-label="예시 노트"><span class="ex-buttons" id="example-buttons"></span></div>
         <span class="divider" aria-hidden="true"></span>
         <a class="live-link" href="/demo">실시간 데모</a>
         <span class="divider" aria-hidden="true"></span>
@@ -703,9 +703,7 @@ mark.ev.on { background: var(--mark-on); }
       return;
     }
     EXAMPLES.forEach(function (ex, i) {
-      // 제목의 괄호 안 이름(예: ACI-BENCH D2N004)을 버튼 이름으로 쓴다.
-      var m = /\(([^)]+)\)/.exec(ex.title || '');
-      var b = el('button', 'ex-btn', m ? m[1] : (ex.title || ex.id));
+      var b = el('button', 'ex-btn', '예시 ' + (i + 1));
       b.type = 'button';
       b.setAttribute('data-example', String(i));
       b.setAttribute('aria-pressed', 'false');

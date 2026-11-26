@@ -3,12 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}</style>
+</head>
+<body>
+<title>ICD 코딩 근거 검토 · 실시간</title>
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<title>실시간 ICD-10-CM 코드 제안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
 <style>
-/* 배치: 위에 연결 상태, 왼쪽에 판독문 입력, 오른쪽에 모델이 제안한 코드 */
+/* 배치: 위에 파이프라인 세 단계 띠, 왼쪽에 노트 원문(근거 강조), 오른쪽에 검토 패널 */
 :root {
   --bg: #f1f4f3;
   --surface: #ffffff;
@@ -18,6 +22,8 @@
   --chip: #e6edea;
   --accent: #0b6a60;
   --accent-ink: #ffffff;
+  --mark: #fdeaa6;
+  --mark-on: #f5b13c;
   --ok: #1c7340;
   --ok-bg: #e2f2e7;
   --no: #a3302a;
@@ -30,20 +36,20 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #111615; --surface: #1a2120; --ink: #e5ebe9; --muted: #9aa8a4; --line: #2d3836; --chip: #232d2b;
-    --accent: #56c7b7; --accent-ink: #06211d;
+    --accent: #56c7b7; --accent-ink: #06211d; --mark: #574813; --mark-on: #a36f0c;
     --ok: #72d398; --ok-bg: #163423; --no: #f08c84; --no-bg: #3a1c1a; --warn: #f0c56c; --warn-bg: #3a2e10;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #111615; --surface: #1a2120; --ink: #e5ebe9; --muted: #9aa8a4; --line: #2d3836; --chip: #232d2b;
-  --accent: #56c7b7; --accent-ink: #06211d;
+  --accent: #56c7b7; --accent-ink: #06211d; --mark: #574813; --mark-on: #a36f0c;
   --ok: #72d398; --ok-bg: #163423; --no: #f08c84; --no-bg: #3a1c1a; --warn: #f0c56c; --warn-bg: #3a2e10;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.55; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.55; }
 .app {
   max-width: 1280px; margin: 0 auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -51,60 +57,126 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f
   padding-block: 20px 40px;
   display: flex; flex-direction: column; gap: 16px;
 }
-h1, h2, p, ol, ul { margin: 0; }
+h1, h2, h3, p, ol, ul { margin: 0; }
 ol, ul { padding: 0; list-style: none; }
-button, input, textarea { font: inherit; color: inherit; }
+button, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
-button:disabled { cursor: not-allowed; opacity: 0.55; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .top { display: flex; flex-direction: column; gap: 10px; }
 .top-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
-h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
-h2 { font-size: 15px; font-weight: 600; }
-.lede { color: var(--muted); max-width: 68ch; font-size: 14px; }
+h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 62ch; }
+.ex-pick { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.ex-buttons { display: flex; flex-wrap: wrap; gap: 4px; }
+.ex-btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ex-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .top-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.top-tools .divider { width: 1px; align-self: stretch; background: var(--line); }
-.nav-link { color: var(--accent); font-size: 13.5px; text-decoration: none; }
-.nav-link:hover { text-decoration: underline; }
 .lang-switch { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px; gap: 2px; }
+.top-tools .divider { width: 1px; align-self: stretch; background: var(--line); }
+.live-link { color: var(--accent); font-size: 13px; text-decoration: none; white-space: nowrap; }
+.live-link:hover { text-decoration: underline; }
 .lang-opt { border-radius: 4px; padding: 2px 9px; font-size: 12.5px; line-height: 1.6; color: var(--muted); text-decoration: none; }
 .lang-opt:hover { color: var(--ink); background: var(--chip); }
 .lang-opt[aria-current="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.banner { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); border-radius: 6px; padding: 8px 12px; font-size: 13.5px; }
 
-.chip { display: inline-block; background: var(--chip); color: var(--muted); border-radius: 999px; padding: 1px 9px; font-size: 12.5px; white-space: nowrap; }
+.stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stage-name { font-size: 12px; color: var(--muted); letter-spacing: 0.02em; }
+.stage-main { font-weight: 600; font-variant-numeric: tabular-nums; }
+.stage-sub { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.panel-head { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+h2 { font-size: 15px; font-weight: 600; }
+.src { font-size: 12.5px; color: var(--muted); }
+.note-panel { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.note-body {
+  padding: 14px 16px; white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: calc(100vh - 150px); overflow: auto; font-size: 14.5px; line-height: 1.7;
+}
+.legend { padding: 8px 16px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.swatch { display: inline-block; width: 22px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: baseline; }
+.swatch.m1 { background: var(--mark); }
+.swatch.m2 { background: var(--mark-on); }
+mark.ev { background: var(--mark); color: inherit; border-radius: 2px; cursor: pointer; padding: 1px 0; }
+mark.ev.dim { background: transparent; box-shadow: inset 0 -2px 0 var(--mark); }
+mark.ev.on { background: var(--mark-on); }
+
+.tabs { display: flex; gap: 4px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); }
+.tab { background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px; color: var(--muted); font-weight: 500; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.view { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; background: var(--surface); }
+.card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card.accepted { background: var(--ok-bg); }
+.card.rejected { background: var(--no-bg); }
+.card.rejected .code-title { text-decoration: line-through; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; background: transparent; border: 0; padding: 0; text-align: left; width: 100%; }
+.code { font-family: var(--font-mono); font-weight: 500; font-size: 16px; font-variant-numeric: tabular-nums; }
+.code-title { flex: 1 1 12ch; min-width: 0; }
+.chip { display: inline-block; background: var(--chip); color: var(--muted); border-radius: 999px; padding: 1px 8px; font-size: 12px; white-space: nowrap; }
 .chip.ok { background: var(--ok-bg); color: var(--ok); }
 .chip.no { background: var(--no-bg); color: var(--no); }
 .chip.warn { background: var(--warn-bg); color: var(--warn); }
-.btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 14px; font-size: 14px; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.meta { font-size: 13px; color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 500; }
+.quotes { display: flex; flex-direction: column; gap: 4px; }
+.quote { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; border: 0; background: transparent; padding: 3px 0 3px 10px; border-left: 3px solid var(--mark-on); text-align: left; font-size: 13.5px; }
+.quote.unlinked { border-left-color: var(--line); cursor: default; }
+.quote-text { min-width: 0; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; font-size: 13.5px; }
+.btn[aria-pressed="true"].accept { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.btn[aria-pressed="true"].reject { background: var(--no); border-color: var(--no); color: var(--surface); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.link { border-color: transparent; background: transparent; color: var(--accent); padding-inline: 4px; }
+.alts { border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.alts-title { font-size: 12.5px; color: var(--muted); }
+.cand-list { display: flex; flex-direction: column; gap: 2px; }
+.cand { display: grid; grid-template-columns: 2.2em 7.5em minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; font-size: 13.5px; }
+.cand .rank { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.cand .ccode { font-family: var(--font-mono); }
+.cand .ctitle { min-width: 0; overflow-wrap: anywhere; }
+.cand.picked .ccode, .cand.picked .ctitle { font-weight: 600; }
 
-.ex-pick { display: flex; align-items: center; gap: 4px; }
-.ex-btn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.ex-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.status { display: flex; flex-direction: column; gap: 8px; }
-.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted); }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
-.dot.ok { background: var(--ok); }
-.dot.no { background: var(--no); }
-.dot.warn { background: var(--warn); }
-#conn-chip { color: var(--ink); }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
-.panel-head { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
-.src { font-size: 12.5px; color: var(--muted); }
-.panel-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
-
-code { font-family: var(--font-mono); font-size: 12.5px; background: var(--chip); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
-.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.summary { border-top: 1px solid var(--line); padding: 12px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.counts { display: flex; flex-wrap: wrap; gap: 6px; font-variant-numeric: tabular-nums; }
 .spacer { flex: 1 1 0; }
+.copy-status { font-size: 12.5px; color: var(--muted); order: 3; flex: 1 0 100%; text-align: right; }
+.copy-status:empty { display: none; }
+#copy-fallback { order: 4; }
+#copy-fallback { width: 100%; min-height: 90px; font-family: var(--font-mono); font-size: 12.5px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.foot { font-size: 12.5px; color: var(--muted); }
+.foot a { color: var(--accent); }
+
+@media (max-width: 860px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .note-panel { position: static; }
+  .note-body { max-height: 46vh; }
+  .stages { grid-template-columns: minmax(0, 1fr); }
+  .cand { grid-template-columns: 2.2em minmax(0, 1fr) auto; }
+  .cand .rank { grid-column: 1; grid-row: 1; }
+  .cand .ccode { grid-column: 2; grid-row: 1; }
+  .cand .ctitle { grid-column: 2 / 4; grid-row: 2; }
+  .cand > :last-child { grid-column: 3; grid-row: 1; justify-self: end; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+/* 실시간 입력과 진행 상황. 결과는 위의 검토 화면 스타일을 그대로 쓴다. */
+.nav-link { color: var(--accent); font-size: 13px; text-decoration: none; white-space: nowrap; }
+.nav-link:hover { text-decoration: underline; }
+.live-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .note { font-size: 13px; color: var(--muted); }
 .note.warn { color: var(--warn); }
-
-.cols { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-textarea#note {
-  width: 100%; min-height: 340px; resize: vertical; background: var(--bg); border: 1px solid var(--line);
-  border-radius: 8px; padding: 12px 14px; font-size: 14.5px; line-height: 1.65; font-family: var(--font-ui);
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+textarea#live-note {
+  width: 100%; min-height: 340px; resize: vertical; background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; font: inherit; font-size: 14.5px; line-height: 1.65;
 }
 .count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .count.over { color: var(--no); font-weight: 500; }
@@ -115,7 +187,6 @@ textarea#note {
 .seg-opt input:checked + span { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
 .seg-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seg-opt input:disabled + span { opacity: 0.55; cursor: not-allowed; }
-
 .empty { color: var(--muted); }
 .working { display: flex; flex-direction: column; gap: 10px; }
 .working-line { display: flex; align-items: center; gap: 10px; font-weight: 500; }
@@ -124,304 +195,630 @@ textarea#note {
 .elapsed { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 400; }
 .alert { background: var(--no-bg); color: var(--no); border: 1px solid var(--no); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
 .alert .hint { color: var(--ink); font-size: 13.5px; }
-.warnbox { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 13.5px; }
-.codes { display: flex; flex-direction: column; gap: 8px; }
-.code-row { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
-.code-row.outside { background: var(--warn-bg); border-color: var(--warn); }
-.code { font-family: var(--font-mono); font-weight: 500; font-size: 16px; font-variant-numeric: tabular-nums; min-width: 6.2em; }
-.code-title { flex: 1 1 14ch; min-width: 0; overflow-wrap: anywhere; }
-.code-title.missing { color: var(--muted); }
-.result-meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
-.result-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
-.result-head b { font-weight: 600; }
-.foot { font-size: 12.5px; color: var(--muted); }
-
-@media (max-width: 860px) {
-  .cols { grid-template-columns: minmax(0, 1fr); }
-  .fields { grid-template-columns: minmax(0, 1fr); }
-  textarea#note { min-height: 240px; }
-}
+.stage.running { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+.dot.ok { background: var(--ok); }
+.dot.no { background: var(--no); }
+.dot.warn { background: var(--warn); }
+#conn-chip { color: var(--ink); }
+@media (max-width: 860px) { textarea#live-note { min-height: 240px; } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
 </style>
-</head>
-<body>
+
 <div class="app">
   <header class="top">
     <div class="top-row">
-      <h1 data-i18n="title">실시간 데모</h1>
+      <h1>ICD 코딩 근거 검토 · 실시간</h1>
       <div class="top-tools">
-        <div class="ex-pick" role="group" id="ex-buttons" aria-label="예시" data-i18n-label="examplesLabel"></div>
+        <div class="ex-pick" role="group" aria-label="예시"><span class="ex-buttons" id="live-examples"></span><span id="example-buttons" hidden></span></div>
         <span class="divider" aria-hidden="true"></span>
-        <a class="nav-link" id="back-link" href="/" data-i18n="back">예시 화면으로</a>
+        <a class="nav-link" id="back-link" href="/">예시 화면으로</a>
         <span class="divider" aria-hidden="true"></span>
-        <nav class="lang-switch" aria-label="언어" data-i18n-label="langLabel">
-          <a class="lang-opt" href="/demo" hreflang="ko" lang="ko" data-lang="ko">한국어</a>
-          <a class="lang-opt" href="/demo?lang=en" hreflang="en" lang="en" data-lang="en">EN</a>
+        <nav class="lang-switch" aria-label="언어">
+          <a class="lang-opt" href="/demo" hreflang="ko" lang="ko" aria-current="true">한국어</a>
+          <a class="lang-opt" href="/demo_en.html" hreflang="en" lang="en">EN</a>
         </nav>
       </div>
     </div>
-    <p class="lede" data-i18n="lede"></p>
+    <p class="lede">판독문을 붙여넣으면 모델이 개념과 근거를 추출하고, 후보 코드를 검색하고, 코드를 제안합니다. 결과는 예시 화면과 같은 방식으로 검토합니다.</p>
+    <p class="banner" id="live-notice" hidden></p>
+    <p class="banner" id="mock-banner" hidden>이 예시의 추출 개념, 후보, 제안 코드는 화면 구성을 보여주려고 손으로 만든 것입니다. 실제 파이프라인 출력이 아닙니다.</p>
+    <ol class="stages" id="stages"></ol>
   </header>
 
   <main class="cols">
-    <section class="panel" aria-labelledby="note-h">
+    <section class="panel input-panel" id="input-panel" aria-labelledby="input-h">
       <div class="panel-head">
-        <h2 id="note-h" data-i18n="noteTitle"></h2>
-        <p class="src" data-i18n="noteSub"></p>
+        <h2 id="input-h">판독문 입력</h2>
+        <p class="src">영문 판독문 한 건 · 예시 1~3은 지어낸 판독문입니다 · 식별 정보가 없는 글만 넣어 주세요</p>
       </div>
-      <div class="panel-body">
-        <textarea id="note" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+      <div class="live-body">
+        <textarea id="live-note" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
           data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"
-          aria-labelledby="note-h" data-i18n-ph="notePlaceholder"></textarea>
+          aria-labelledby="input-h" placeholder="여기에 판독문을 붙여넣으세요."></textarea>
         <div class="row">
-          <button class="btn primary" id="run-btn" type="button" data-i18n="runBtn"></button>
-          <button class="btn" id="clear-btn" type="button" data-i18n="clearBtn"></button>
-          <div class="seg" role="radiogroup" id="modes" aria-label="실행 방식" data-i18n-label="modeLegend">
-            <label class="seg-opt"><input type="radio" name="mode" value="fast" checked><span data-i18n="modeFast"></span></label>
-            <label class="seg-opt"><input type="radio" name="mode" value="full"><span data-i18n="modeFull"></span></label>
+          <button class="btn primary" id="run-btn" type="button">실행</button>
+          <button class="btn" id="clear-btn" type="button">지우기</button>
+          <div class="seg" role="radiogroup" id="modes" aria-label="실행 방식">
+            <label class="seg-opt"><input type="radio" name="mode" value="full" checked><span>실험과 같은 설정</span></label>
+            <label class="seg-opt"><input type="radio" name="mode" value="fast"><span>빠르게</span></label>
           </div>
           <span class="spacer"></span>
           <span class="count" id="count"></span>
         </div>
         <p class="note" id="mode-sub"></p>
         <p class="note warn" id="run-reason" hidden></p>
-        <p class="note" data-i18n="privacy"></p>
+        <p class="note">판독문은 이 브라우저에서 추론 서버로 바로 전송되고, 이 페이지를 올려 둔 호스팅 서비스를 거치지 않습니다. 서버는 판독문과 모델 응답을 파일이나 로그에 남기지 않습니다.</p>
       </div>
     </section>
 
-    <section class="panel" aria-labelledby="result-h">
+    <section class="panel note-panel" hidden aria-label="노트 원문">
       <div class="panel-head">
-        <h2 id="result-h" data-i18n="resultTitle"></h2>
-        <p class="src" data-i18n="resultSub"></p>
+        <h2 id="note-title">노트</h2>
+        <p class="src" id="note-source"></p>
+        <div><button class="btn link" id="new-note-btn" type="button">새 판독문 입력</button></div>
       </div>
-      <div class="panel-body" id="result" aria-live="polite"></div>
+      <div class="note-body" id="note-body" tabindex="0"></div>
+      <p class="legend">
+        <span><span class="swatch m1"></span>근거로 인용된 구간</span>
+        <span><span class="swatch m2"></span>지금 선택한 코드의 근거</span>
+        <span>강조된 구간을 누르면 해당 코드로 이동합니다.</span>
+      </p>
+    </section>
+
+    <section class="panel" id="live-side" aria-labelledby="side-h">
+      <div class="panel-head">
+        <h2 id="side-h">진행 상황</h2>
+        <p class="src">실행하면 세 단계가 차례로 진행됩니다</p>
+      </div>
+      <div class="live-body" id="live-side-body" aria-live="polite"></div>
+    </section>
+
+    <section class="panel review-panel" hidden aria-label="코드 검토">
+      <div class="tabs" role="tablist" aria-label="보기 선택">
+        <button class="tab" role="tab" id="tab-codes" aria-controls="view-codes" aria-selected="true">제안 코드</button>
+        <button class="tab" role="tab" id="tab-items" aria-controls="view-items" aria-selected="false">추출 개념과 후보</button>
+      </div>
+      <div class="view" id="view-codes" role="tabpanel" aria-labelledby="tab-codes"></div>
+      <div class="view" id="view-items" role="tabpanel" aria-labelledby="tab-items" hidden></div>
+      <div class="summary">
+        <div class="counts" id="counts"></div>
+        <span class="spacer"></span>
+        <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
+        <button class="btn" id="reset-btn" type="button">검토 초기화</button>
+        <button class="btn primary" id="copy-btn" type="button">수락한 코드 복사</button>
+        <textarea id="copy-fallback" readonly hidden aria-label="수락한 코드 목록"></textarea>
+      </div>
     </section>
   </main>
 
-  <footer class="status" id="status">
-    <div class="status-line">
-      <span class="dot" id="conn-dot" aria-hidden="true"></span>
-      <span id="conn-chip" role="status" aria-live="polite"></span>
-    </div>
+  <footer class="status-line" id="status">
+    <span class="dot" id="conn-dot" aria-hidden="true"></span>
+    <span id="conn-chip" role="status" aria-live="polite"></span>
   </footer>
 
-  <p class="foot" data-i18n="foot"></p>
+  <p class="foot" id="foot"></p>
 </div>
 
+<script>window.ICD_EXAMPLES = [];</script>
 <script>
 (function () {
   'use strict';
 
-  var TEXT = {
-    ko: {
-      pageTitle: '실시간 데모 · ICD-10-CM 코드',
-      title: '실시간 데모',
-      back: '예시 화면으로',
-      langLabel: '언어',
-      lede: '판독문을 붙여넣고 실행하면 모델이 132개 라벨 목록에서 ICD-10-CM 코드를 골라 공식 코드명과 함께 보여 줍니다.',
-      examplesLabel: '예시',
-      example: '예시 {n}',
-      reasonOff: '서버가 꺼져 있어 실행할 수 없습니다.',
-      reasonToken: '접근 권한이 없습니다. 서버가 알려 준 링크로 다시 열어 주세요.',
-      reasonOrigin: '서버가 이 페이지 주소를 허용해야 실행할 수 있습니다.',
-      reasonModel: '모델이 준비되면 실행할 수 있습니다.',
-      noteTitle: '판독문',
-      noteSub: '영문 판독문 한 건 · 예시 1~3은 지어낸 판독문입니다 · 식별 정보가 없는 글만 넣어 주세요',
-      notePlaceholder: '여기에 판독문을 붙여넣으세요.',
-      runBtn: '실행',
-      modeLegend: '실행 방식',
-      modeFast: '빠르게',
-      modeFastSub: '추론을 생략하고 바로 답합니다 · 몇 초',
-      modeFull: '실험과 같은 설정',
-      modeFullSub: '모델이 추론한 뒤 답합니다 · 보통 수십 초, 길면 2~3분',
-      runningFast: '모델이 코드를 고르는 중',
-      waitFast: '보통 몇 초 안에 끝납니다.',
-      metaReasoned: '추론 사용',
-      metaNoReasoning: '추론 생략',
-      fastFellBack: '서버의 모델이 추론 생략을 받아들이지 않아 추론을 사용했습니다.',
-      clearBtn: '지우기',
-      privacy: '판독문은 이 브라우저에서 추론 서버로 바로 전송되고, 이 페이지를 올려 둔 호스팅 서비스를 거치지 않습니다. 서버는 판독문과 모델 응답을 파일이나 로그에 남기지 않습니다.',
-      resultTitle: '모델이 제안한 코드',
-      resultSub: '모델의 제안이며 확정 코드가 아닙니다',
-      idle: '예시를 고르거나 판독문을 붙여넣고 실행을 누르면 여기에 코드와 공식 코드명이 나옵니다.',
-      count: '{n}자 / 최대 {max}자',
-      connChecking: '서버 확인 중',
-      connOk: '서버 켜짐',
-      connDown: '서버 꺼짐',
-      connToken: '서버 켜짐 · 접근 권한 없음',
-      connOrigin: '서버 켜짐 · 이 페이지는 허용되지 않음',
-      connNoModel: '서버 켜짐 · 모델 준비 중',
-      sending: '판독문을 보내는 중',
-      queued: '대기 중 · 앞에 {n}건',
-      running: '모델이 판독문을 읽고 코드를 고르는 중',
-      elapsed: '{s}초 경과',
-      wait: '모델이 추론한 뒤 답하므로 수십 초에서 2~3분이 걸릴 수 있습니다. 이 창을 닫으면 결과를 받을 수 없습니다.',
-      cancelBtn: '취소',
-      resultCount: '코드 {n}개',
-      resultNone: '모델이 코드를 제안하지 않았습니다.',
-      resultMeta: '모델 {model} · {s}초 · {reasoning} · 방식 {pipeline} (검색·추출 단계 없음)',
-      outside: '라벨 목록 밖',
-      noTitle: '132개 라벨 목록에 없는 코드라 공식 코드명을 표시할 수 없습니다.',
-      truncated: '모델 응답이 길이 제한에 닿았습니다. 목록이 불완전할 수 있습니다.',
-      cancelled: '취소했습니다.',
-      errTitle: '코드를 받지 못했습니다',
-      err: {
-        NETWORK: '서버에 연결할 수 없습니다.',
-        NOTE_EMPTY: '판독문이 비어 있습니다.',
-        NOTE_TOO_LONG: '판독문이 너무 깁니다. 최대 {max}자까지 받을 수 있습니다.',
-        UNAUTHORIZED: '접근 토큰이 없거나 맞지 않습니다.',
-        ORIGIN_NOT_ALLOWED: '이 페이지 주소가 서버의 허용 목록에 없습니다.',
-        QUEUE_FULL: '대기 중인 판독문이 많습니다. 잠시 뒤에 다시 실행해 주세요.',
-        LLM_UNREACHABLE: '서버는 응답하지만 생성 모델에 연결하지 못했습니다.',
-        LLM_TIMEOUT: '생성 모델이 제한 시간 안에 답하지 않았습니다.',
-        LLM_HTTP_ERROR: '생성 모델이 오류를 돌려주었습니다.',
-        LLM_BAD_RESPONSE: '생성 모델의 응답 형식을 읽지 못했습니다.',
-        NO_ANSWER: '모델 응답에 코드 목록이 없었습니다. 다시 실행해 보세요.',
-        NO_ANSWER_TRUNCATED: '모델이 길이 제한 안에 답을 끝내지 못했습니다. 판독문을 줄이거나 다시 실행해 보세요.',
-        JOB_NOT_FOUND: '서버에서 이 작업을 찾을 수 없습니다. 서버가 재시작됐을 수 있습니다.',
-        INTERNAL: '서버 내부 오류가 났습니다.',
-        UNKNOWN: '알 수 없는 오류가 났습니다.'
-      },
-      hint: {
-        NETWORK: '서버가 꺼졌거나 연결이 끊겼습니다.',
-        UNAUTHORIZED: '서버가 알려 준 링크로 다시 열어 주세요.',
-        ORIGIN_NOT_ALLOWED: '서버 설정에서 이 페이지 주소를 허용해야 합니다.',
-        LLM_UNREACHABLE: '모델 서비스가 켜져 있는지 확인해 주세요.'
-      },
-      foot: '실시간 데모 · 코드명은 ICD-10-CM 공식 명칭(132개 벤치마크 라벨 목록)입니다.'
-    },
-    en: {
-      pageTitle: 'Live demo · ICD-10-CM codes',
-      title: 'Live demo',
-      back: 'Back to examples',
-      langLabel: 'Language',
-      lede: 'Paste a clinical note and run it: the model picks ICD-10-CM codes from the 132-code label list and shows them with their official titles.',
-      examplesLabel: 'Examples',
-      example: 'Example {n}',
-      reasonOff: 'The server is off, so nothing can run.',
-      reasonToken: 'No access. Open the page again with the link the server gave you.',
-      reasonOrigin: 'The server must allow this page address before you can run.',
-      reasonModel: 'Run becomes available when the model is ready.',
-      noteTitle: 'Clinical note',
-      noteSub: 'One note in English · Examples 1–3 are made-up notes · de-identified text only',
-      notePlaceholder: 'Paste the note here.',
-      runBtn: 'Run',
-      modeLegend: 'How to run',
-      modeFast: 'Fast',
-      modeFastSub: 'Answers at once without reasoning · a few seconds',
-      modeFull: 'Same setting as the experiments',
-      modeFullSub: 'The model reasons, then answers · usually tens of seconds, up to 2–3 minutes',
-      runningFast: 'The model is choosing codes',
-      waitFast: 'This usually takes a few seconds.',
-      metaReasoned: 'with reasoning',
-      metaNoReasoning: 'without reasoning',
-      fastFellBack: 'The model on the server did not accept the no-reasoning setting, so it reasoned.',
-      clearBtn: 'Clear',
-      privacy: 'The note goes from this browser straight to the inference server and does not pass through the service that hosts this page. The server keeps neither the note nor the model response in files or logs.',
-      resultTitle: 'Codes suggested by the model',
-      resultSub: 'Suggestions, not final codes',
-      idle: 'Pick an example or paste a note, then press Run. The codes and their official titles appear here.',
-      count: '{n} / {max} characters',
-      connChecking: 'Checking the server',
-      connOk: 'Server on',
-      connDown: 'Server off',
-      connToken: 'Server on · no access',
-      connOrigin: 'Server on · this page is not allowed',
-      connNoModel: 'Server on · model loading',
-      sending: 'Sending the note',
-      queued: 'Waiting · {n} ahead',
-      running: 'The model is reading the note and choosing codes',
-      elapsed: '{s} s elapsed',
-      wait: 'The model reasons before it answers, so this can take from tens of seconds to 2–3 minutes. Closing this tab loses the result.',
-      cancelBtn: 'Cancel',
-      resultCount: '{n} codes',
-      resultNone: 'The model suggested no code.',
-      resultMeta: 'Model {model} · {s} s · {reasoning} · method {pipeline} (no retrieval or extraction stage)',
-      outside: 'Outside the label list',
-      noTitle: 'This code is not in the 132-code label list, so no official title can be shown.',
-      truncated: 'The model response reached the length limit. The list may be incomplete.',
-      cancelled: 'Cancelled.',
-      errTitle: 'No codes were returned',
-      err: {
-        NETWORK: 'Cannot reach the server.',
-        NOTE_EMPTY: 'The note is empty.',
-        NOTE_TOO_LONG: 'The note is too long. The server accepts up to {max} characters.',
-        UNAUTHORIZED: 'The access token is missing or wrong.',
-        ORIGIN_NOT_ALLOWED: 'This page address is not on the server allow list.',
-        QUEUE_FULL: 'Many notes are waiting. Run it again in a moment.',
-        LLM_UNREACHABLE: 'The server answered, but it could not reach the generation model.',
-        LLM_TIMEOUT: 'The generation model did not answer within the time limit.',
-        LLM_HTTP_ERROR: 'The generation model returned an error.',
-        LLM_BAD_RESPONSE: 'The response of the generation model could not be read.',
-        NO_ANSWER: 'The model response had no code list. Try running it again.',
-        NO_ANSWER_TRUNCATED: 'The model did not finish its answer within the length limit. Shorten the note or run it again.',
-        JOB_NOT_FOUND: 'The server no longer has this job. It may have been restarted.',
-        INTERNAL: 'The server had an internal error.',
-        UNKNOWN: 'An unknown error occurred.'
-      },
-      hint: {
-        NETWORK: 'The server was turned off or the connection was lost.',
-        UNAUTHORIZED: 'Open the page again with the link the server gave you.',
-        ORIGIN_NOT_ALLOWED: 'The server settings must allow this page address.',
-        LLM_UNREACHABLE: 'Check that the model service is on.'
-      },
-      foot: 'Live demo · Titles are official ICD-10-CM titles (132-code benchmark label list).'
+  var EXAMPLES = window.ICD_EXAMPLES || [];
+  var TAG_LABEL = { negated: '부정', uncertain: '불확실', history: '과거력', family_history: '가족력' };
+  var state = { ex: null, active: null, decisions: {}, added: [], view: 'codes', openAlt: {} };
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined && text !== null) { e.textContent = text; }
+    return e;
+  }
+  function reduceMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+  function storeKey() { return 'icd-review:' + state.ex.id; }
+  function save() {
+    try {
+      window.localStorage.setItem(storeKey(), JSON.stringify({ decisions: state.decisions, added: state.added }));
+    } catch (e) { /* 저장이 안 되어도 화면은 그대로 동작한다 */ }
+  }
+  function load() {
+    try {
+      var raw = window.localStorage.getItem(storeKey());
+      if (!raw) { return; }
+      var obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        state.decisions = obj.decisions && typeof obj.decisions === 'object' ? obj.decisions : {};
+        state.added = Array.isArray(obj.added) ? obj.added : [];
+      }
+    } catch (e) { state.decisions = {}; state.added = []; }
+  }
+
+  function itemById(id) {
+    var items = state.ex.items;
+    for (var i = 0; i < items.length; i++) { if (items[i].id === id) { return items[i]; } }
+    return null;
+  }
+  function allCodes() {
+    // 모델 제안 코드 뒤에 검토자가 추가한 코드를 붙인다.
+    var out = [];
+    state.ex.codes.forEach(function (c) { out.push({ code: c.code, title: c.title, item_ids: c.item_ids || [], evidence: c.evidence || [], origin: 'model' }); });
+    state.added.forEach(function (a) { out.push({ code: a.code, title: a.title, item_ids: a.item_ids || [], evidence: [], origin: 'reviewer' }); });
+    return out;
+  }
+  function codeEntry(code) {
+    var list = allCodes();
+    for (var i = 0; i < list.length; i++) { if (list[i].code === code) { return list[i]; } }
+    return null;
+  }
+  function decisionOf(code) { return state.decisions[code] || 'pending'; }
+
+  function activeRefs() {
+    var refs = {};
+    var a = state.active;
+    if (!a) { return refs; }
+    if (a.type === 'code') {
+      refs['code:' + a.id] = true;
+      var entry = codeEntry(a.id);
+      if (entry) { entry.item_ids.forEach(function (q) { refs['item:' + q] = true; }); }
+    } else {
+      refs['item:' + a.id] = true;
     }
-  };
+    return refs;
+  }
 
-  // 예시 1~3은 모두 지어낸 판독문이다. 실제 환자의 기록이 아니고, 벤치마크의 노트도 아니다.
-  var SAMPLES = [
-    [
-      'CHIEF COMPLAINT', '',
-      'Follow-up of diabetes and high blood pressure.', '',
-      'HISTORY OF PRESENT ILLNESS', '',
-      'The patient is a 58-year-old woman who returns for a routine follow-up. Her type 2 diabetes has been stable on metformin, with home fasting glucose readings between 110 and 130. She denies numbness or tingling in her feet and has no known kidney or eye complications. Her hypertension is treated with lisinopril, and home blood pressures run around 128/78. For the past two weeks she has had heartburn after meals and at night, without difficulty swallowing, weight loss, or black stools. She also reports three weeks of low back pain that started after gardening, without leg pain, numbness, or weakness.', '',
-      'REVIEW OF SYSTEMS', '',
-      'Negative for chest pain, shortness of breath, and dizziness.', '',
-      'PHYSICAL EXAM', '',
-      'Blood pressure 130/80. Heart with regular rate and rhythm, no murmur. Lungs clear. Abdomen soft and non-tender. Lumbar paraspinal muscles tender on palpation. Straight leg raise negative on both sides.', '',
-      'RESULTS', '',
-      'Hemoglobin A1c 6.8%.', '',
-      'ASSESSMENT AND PLAN', '',
-      '1. Type 2 diabetes mellitus without complications. Continue metformin 1000 mg twice daily. Repeat A1c in 3 months.',
-      '2. Hypertension. Well controlled. Continue lisinopril 20 mg daily.',
-      '3. Gastroesophageal reflux disease. Start omeprazole 20 mg daily for 8 weeks and avoid late meals.',
-      '4. Low back pain. Likely muscular. Recommend stretching, heat, and ibuprofen as needed.'
-    ].join('\n'),
-    [
-      'CHIEF COMPLAINT', '',
-      'Right knee pain.', '',
-      'HISTORY OF PRESENT ILLNESS', '',
-      'The patient is a 34-year-old man who presents with right knee pain that began 3 days ago when he twisted the knee while playing soccer. He felt a pop on the inside of the knee and noticed swelling by the evening. He is able to bear weight but has pain with pivoting. He denies locking or giving way. Ibuprofen has given partial relief. He has a history of mild intermittent asthma and uses an albuterol inhaler a few times a year; he has had no recent wheezing.', '',
-      'PHYSICAL EXAM', '',
-      'Right knee: mild effusion. Tenderness over the medial joint line and along the medial collateral ligament. Pain and mild laxity with valgus stress at 30 degrees. Lachman and anterior drawer negative. McMurray negative. Neurovascularly intact distally.',
-      'Lungs: clear to auscultation bilaterally, no wheezes.', '',
-      'RESULTS', '',
-      'X-ray of the right knee, 3 views: no fracture or dislocation.', '',
-      'ASSESSMENT AND PLAN', '',
-      '1. Sprain of the medial collateral ligament of the right knee, initial visit. Hinged knee brace for 4 weeks, ice, elevation, and ibuprofen 600 mg three times daily with food. Referral to physical therapy. Return in 4 weeks; MRI if not improving.',
-      '2. Mild intermittent asthma, stable. Continue albuterol as needed.'
-    ].join('\n'),
-    [
-      'CHIEF COMPLAINT', '',
-      'Shortness of breath and leg swelling.', '',
-      'HISTORY OF PRESENT ILLNESS', '',
-      'The patient is a 71-year-old woman with a history of atrial fibrillation, hyperlipidemia, and hypothyroidism who presents with 2 weeks of shortness of breath on exertion and swelling of both ankles. She sleeps on two pillows. She denies chest pain, palpitations, fever, or cough. She has been eating more salty food and missed several doses of her diuretic. She takes apixaban, metoprolol, atorvastatin, levothyroxine, and furosemide.', '',
-      'PHYSICAL EXAM', '',
-      'Blood pressure 138/84, heart rate 88 and irregularly irregular, oxygen saturation 95% on room air. Neck: jugular venous distention to 8 cm. Lungs: fine crackles at both bases. Heart: irregular rhythm, no murmur. Extremities: 2+ pitting edema of both ankles.', '',
-      'RESULTS', '',
-      'ECG: atrial fibrillation with controlled ventricular rate. Chest X-ray: mild pulmonary vascular congestion. TSH within normal limits.', '',
-      'ASSESSMENT AND PLAN', '',
-      '1. Heart failure with fluid overload. Increase furosemide to 40 mg twice daily for 5 days, then 40 mg daily. Low-salt diet and daily weights. Echocardiogram ordered.',
-      '2. Atrial fibrillation, rate controlled. Continue metoprolol and apixaban.',
-      '3. Hyperlipidemia. Continue atorvastatin.',
-      '4. Hypothyroidism, TSH at goal. Continue levothyroxine.'
-    ].join('\n')
-  ];
+  // ---------- 노트 ----------
+  function evidenceSpans() {
+    var spans = [];
+    state.ex.items.forEach(function (it) {
+      (it.evidence || []).forEach(function (ev) {
+        if (ev.linked) { (ev.spans || [ev]).forEach(function (sp) { spans.push({ start: sp.start, end: sp.end, ref: 'item:' + it.id }); }); }
+      });
+    });
+    state.ex.codes.forEach(function (c) {
+      (c.evidence || []).forEach(function (ev) {
+        if (ev.linked) { (ev.spans || [ev]).forEach(function (sp) { spans.push({ start: sp.start, end: sp.end, ref: 'code:' + c.code }); }); }
+      });
+    });
+    return spans;
+  }
+  function renderNote() {
+    var text = state.ex.note;
+    var spans = evidenceSpans();
+    var cuts = {};
+    cuts[0] = true; cuts[text.length] = true;
+    spans.forEach(function (s) { cuts[s.start] = true; cuts[s.end] = true; });
+    var pts = Object.keys(cuts).map(Number).sort(function (x, y) { return x - y; });
+    var body = $('note-body');
+    body.textContent = '';
+    for (var i = 0; i < pts.length - 1; i++) {
+      var a = pts[i], b = pts[i + 1];
+      if (b <= a) { continue; }
+      var refs = [];
+      for (var j = 0; j < spans.length; j++) {
+        if (spans[j].start <= a && spans[j].end >= b && refs.indexOf(spans[j].ref) === -1) { refs.push(spans[j].ref); }
+      }
+      var piece = text.slice(a, b);
+      if (!refs.length) {
+        body.appendChild(document.createTextNode(piece));
+      } else {
+        var m = el('mark', 'ev', piece);
+        m.setAttribute('data-refs', refs.join(' '));
+        m.setAttribute('data-start', String(a));
+        m.setAttribute('role', 'button');
+        m.tabIndex = 0;
+        body.appendChild(m);
+      }
+    }
+    paintNote();
+  }
+  function paintNote() {
+    var refs = activeRefs();
+    var hasActive = !!state.active;
+    var marks = $('note-body').querySelectorAll('mark.ev');
+    for (var i = 0; i < marks.length; i++) {
+      var list = (marks[i].getAttribute('data-refs') || '').split(' ');
+      var on = false;
+      for (var j = 0; j < list.length; j++) { if (refs[list[j]]) { on = true; break; } }
+      marks[i].classList.toggle('on', on);
+      marks[i].classList.toggle('dim', hasActive && !on);
+    }
+  }
+  function scrollNoteTo(start) {
+    var marks = $('note-body').querySelectorAll('mark.ev');
+    for (var i = 0; i < marks.length; i++) {
+      if (Number(marks[i].getAttribute('data-start')) >= start) {
+        marks[i].scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' });
+        return;
+      }
+    }
+  }
+  function scrollNoteToActive() {
+    var first = $('note-body').querySelector('mark.ev.on');
+    if (first) { first.scrollIntoView({ block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth' }); }
+  }
+  function onMarkActivate(mark) {
+    var list = (mark.getAttribute('data-refs') || '').split(' ');
+    var target = null;
+    for (var i = 0; i < list.length; i++) { if (list[i].indexOf('code:') === 0) { target = { type: 'code', id: list[i].slice(5) }; break; } }
+    if (!target && list.length) { target = { type: 'item', id: list[0].slice(5) }; }
+    if (!target) { return; }
+    setView(target.type === 'code' ? 'codes' : 'items');
+    setActive(target, false);
+    var card = document.querySelector('[data-card="' + target.type + ':' + cssEscape(target.id) + '"]');
+    if (card) { card.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' }); }
+  }
+  function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 
-  var params = new URLSearchParams(location.search);
-  var lang = params.get('lang') === 'en' ? 'en' : 'ko';
-  var L = TEXT[lang];
+  // ---------- 근거 인용 ----------
+  function quoteNode(ev) {
+    var q;
+    if (ev.linked) {
+      q = el('button', 'quote');
+      q.type = 'button';
+      q.addEventListener('click', function (e) { e.stopPropagation(); scrollNoteTo(ev.start); });
+    } else {
+      q = el('div', 'quote unlinked');
+    }
+    q.appendChild(el('span', 'quote-text', '“' + ev.quote + '”'));
+    q.appendChild(el('span', ev.linked ? 'chip' : 'chip warn', ev.linked ? '원문 연결' : '원문에서 찾지 못함'));
+    return q;
+  }
+
+  // ---------- 제안 코드 ----------
+  function renderCodes() {
+    var view = $('view-codes');
+    view.textContent = '';
+    var list = allCodes();
+    if (!list.length) { view.appendChild(el('p', 'meta', '제안된 코드가 없습니다.')); return; }
+    list.forEach(function (c) { view.appendChild(codeCard(c)); });
+  }
+  function codeCard(c) {
+    var d = decisionOf(c.code);
+    var isActive = state.active && state.active.type === 'code' && state.active.id === c.code;
+    var card = el('article', 'card' + (d !== 'pending' ? ' ' + d : '') + (isActive ? ' active' : ''));
+    card.setAttribute('data-card', 'code:' + c.code);
+
+    var head = el('button', 'card-head');
+    head.type = 'button';
+    head.setAttribute('aria-label', c.code + ' ' + c.title + ' 근거 보기');
+    head.appendChild(el('span', 'code', c.code));
+    head.appendChild(el('span', 'code-title', c.title));
+    head.appendChild(el('span', c.origin === 'model' ? 'chip' : 'chip ok', c.origin === 'model' ? '모델 제안' : '검토자 추가'));
+    head.addEventListener('click', function () { setActive({ type: 'code', id: c.code }, true); });
+    card.appendChild(head);
+
+    var concepts = c.item_ids.map(function (q) { var it = itemById(q); return it ? it.concept : q; });
+    if (concepts.length) {
+      var meta = el('p', 'meta');
+      meta.appendChild(document.createTextNode('추출 개념: '));
+      meta.appendChild(el('b', null, concepts.join(', ')));
+      card.appendChild(meta);
+    }
+    if (c.evidence.length) {
+      var qs = el('div', 'quotes');
+      c.evidence.forEach(function (ev) { qs.appendChild(quoteNode(ev)); });
+      card.appendChild(qs);
+    } else if (c.origin === 'reviewer') {
+      card.appendChild(el('p', 'meta', '검토자가 후보 목록에서 고른 코드입니다. 근거는 해당 개념의 인용을 따릅니다.'));
+    }
+
+    var actions = el('div', 'actions');
+    var acc = el('button', 'btn accept', '수락');
+    acc.type = 'button';
+    acc.setAttribute('aria-pressed', d === 'accepted' ? 'true' : 'false');
+    acc.addEventListener('click', function () { decide(c.code, d === 'accepted' ? 'pending' : 'accepted'); });
+    var rej = el('button', 'btn reject', '제외');
+    rej.type = 'button';
+    rej.setAttribute('aria-pressed', d === 'rejected' ? 'true' : 'false');
+    rej.addEventListener('click', function () { decide(c.code, d === 'rejected' ? 'pending' : 'rejected'); });
+    actions.appendChild(acc);
+    actions.appendChild(rej);
+
+    var nAlt = 0;
+    c.item_ids.forEach(function (q) { var it = itemById(q); if (it) { nAlt += (it.candidates || []).length; } });
+    if (nAlt) {
+      var open = !!state.openAlt[c.code];
+      var tog = el('button', 'btn link', open ? '후보 접기' : '다른 후보 보기 (' + nAlt + ')');
+      tog.type = 'button';
+      tog.setAttribute('aria-expanded', open ? 'true' : 'false');
+      tog.addEventListener('click', function () { state.openAlt[c.code] = !open; renderCodes(); });
+      actions.appendChild(tog);
+    }
+    if (c.origin === 'reviewer') {
+      var rm = el('button', 'btn link', '추가 취소');
+      rm.type = 'button';
+      rm.addEventListener('click', function () { removeAdded(c.code); });
+      actions.appendChild(rm);
+    }
+    card.appendChild(actions);
+
+    if (state.openAlt[c.code]) {
+      var alts = el('div', 'alts');
+      c.item_ids.forEach(function (q) {
+        var it = itemById(q);
+        if (!it) { return; }
+        alts.appendChild(el('p', 'alts-title', '“' + it.concept + '”의 후보 (검색어: ' + it.query + ')'));
+        alts.appendChild(candList(it, c.code));
+      });
+      card.appendChild(alts);
+    }
+    return card;
+  }
+  function candList(it, currentCode) {
+    var ul = el('ul', 'cand-list');
+    (it.candidates || []).forEach(function (cand) {
+      var present = !!codeEntry(cand.code);
+      var li = el('li', 'cand' + (present ? ' picked' : ''));
+      li.appendChild(el('span', 'rank', String(cand.rank)));
+      li.appendChild(el('span', 'ccode', cand.code));
+      li.appendChild(el('span', 'ctitle', cand.title));
+      if (present) {
+        li.appendChild(el('span', 'chip', cand.code === currentCode ? '이 코드' : '목록에 있음'));
+      } else {
+        var box = el('span', 'actions');
+        var add = el('button', 'btn', '추가');
+        add.type = 'button';
+        add.setAttribute('aria-label', cand.code + ' 추가');
+        add.addEventListener('click', function () { addCode(cand, it.id, null); });
+        box.appendChild(add);
+        if (currentCode) {
+          var swap = el('button', 'btn', '교체');
+          swap.type = 'button';
+          swap.setAttribute('aria-label', currentCode + '를 ' + cand.code + '로 교체');
+          swap.addEventListener('click', function () { addCode(cand, it.id, currentCode); });
+          box.appendChild(swap);
+        }
+        li.appendChild(box);
+      }
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  // ---------- 추출 개념과 후보 ----------
+  function renderItems() {
+    var view = $('view-items');
+    view.textContent = '';
+    state.ex.items.forEach(function (it) {
+      var isActive = state.active && state.active.type === 'item' && state.active.id === it.id;
+      var card = el('article', 'card' + (isActive ? ' active' : ''));
+      card.setAttribute('data-card', 'item:' + it.id);
+      var head = el('button', 'card-head');
+      head.type = 'button';
+      head.appendChild(el('span', 'code', it.id));
+      head.appendChild(el('span', 'code-title', it.concept));
+      (it.tags || []).forEach(function (t) { head.appendChild(el('span', 'chip warn', TAG_LABEL[t] || t)); });
+      head.addEventListener('click', function () { setActive({ type: 'item', id: it.id }, true); });
+      card.appendChild(head);
+      var meta = el('p', 'meta');
+      meta.appendChild(document.createTextNode('검색어: '));
+      meta.appendChild(el('b', null, it.query));
+      card.appendChild(meta);
+      if ((it.evidence || []).length) {
+        var qs = el('div', 'quotes');
+        it.evidence.forEach(function (ev) { qs.appendChild(quoteNode(ev)); });
+        card.appendChild(qs);
+      }
+      if ((it.candidates || []).length) {
+        var alts = el('div', 'alts');
+        alts.appendChild(el('p', 'alts-title', '후보 ' + it.candidates.length + '개 (재순위 점수 순)'));
+        alts.appendChild(candList(it, null));
+        card.appendChild(alts);
+      }
+      view.appendChild(card);
+    });
+  }
+
+  // ---------- 요약 ----------
+  function renderStages() {
+    var ex = state.ex;
+    var itemQuotes = 0, itemLinked = 0, candTotal = 0, distinct = {}, codeWithConcept = 0, perItem = 0;
+    ex.items.forEach(function (it) {
+      (it.evidence || []).forEach(function (ev) { itemQuotes++; if (ev.linked) { itemLinked++; } });
+      var n = (it.candidates || []).length;
+      candTotal += n;
+      if (n > perItem) { perItem = n; }
+      (it.candidates || []).forEach(function (c) { distinct[c.code] = true; });
+    });
+    ex.codes.forEach(function (c) { if ((c.item_ids || []).length) { codeWithConcept++; } });
+    var rows = [
+      ['1단계 · 개념 추출', '개념 ' + ex.items.length + '개', '인용 ' + itemQuotes + '개 중 ' + itemLinked + '개가 원문에 연결됨'],
+      ['2단계 · 후보 검색', '후보 ' + ex.candidate_count + '개', '개념마다 최대 ' + perItem + '개 표시, ' + ex.label_space + '개 라벨 목록에서 검색'],
+      ['3단계 · 코드 선택', '제안 코드 ' + ex.codes.length + '개', '코드 ' + ex.codes.length + '개 중 ' + codeWithConcept + '개가 검색을 거쳐 추출 개념과 연결됨']
+    ];
+    var ol = $('stages');
+    ol.textContent = '';
+    rows.forEach(function (r) {
+      var li = el('li', 'stage');
+      li.appendChild(el('span', 'stage-name', r[0]));
+      li.appendChild(el('span', 'stage-main', r[1]));
+      li.appendChild(el('span', 'stage-sub', r[2]));
+      ol.appendChild(li);
+    });
+  }
+  function renderCounts() {
+    var acc = 0, rej = 0, pen = 0;
+    allCodes().forEach(function (c) {
+      var d = decisionOf(c.code);
+      if (d === 'accepted') { acc++; } else if (d === 'rejected') { rej++; } else { pen++; }
+    });
+    var box = $('counts');
+    box.textContent = '';
+    box.appendChild(el('span', 'chip ok', '수락 ' + acc));
+    box.appendChild(el('span', 'chip no', '제외 ' + rej));
+    box.appendChild(el('span', 'chip', '미검토 ' + pen));
+  }
+
+  // ---------- 동작 ----------
+  function setActive(target, scrollNote) {
+    var same = state.active && target && state.active.type === target.type && state.active.id === target.id;
+    state.active = same && scrollNote ? null : target;
+    renderCodes();
+    renderItems();
+    paintNote();
+    if (state.active && scrollNote) { scrollNoteToActive(); }
+  }
+  function decide(code, value) {
+    if (value === 'pending') { delete state.decisions[code]; } else { state.decisions[code] = value; }
+    save();
+    renderCodes();
+    renderCounts();
+  }
+  function addCode(cand, itemId, replaceCode) {
+    if (!codeEntry(cand.code)) {
+      state.added.push({ code: cand.code, title: cand.title, item_ids: [itemId] });
+      state.decisions[cand.code] = 'accepted';
+    }
+    if (replaceCode) { state.decisions[replaceCode] = 'rejected'; }
+    save();
+    renderCodes();
+    renderItems();
+    renderCounts();
+  }
+  function removeAdded(code) {
+    state.added = state.added.filter(function (a) { return a.code !== code; });
+    delete state.decisions[code];
+    delete state.openAlt[code];
+    if (state.active && state.active.type === 'code' && state.active.id === code) { state.active = null; }
+    save();
+    renderCodes();
+    renderItems();
+    renderCounts();
+    paintNote();
+  }
+  function setView(name) {
+    state.view = name;
+    var codes = name === 'codes';
+    $('view-codes').hidden = !codes;
+    $('view-items').hidden = codes;
+    $('tab-codes').setAttribute('aria-selected', codes ? 'true' : 'false');
+    $('tab-items').setAttribute('aria-selected', codes ? 'false' : 'true');
+  }
+  function copyText() {
+    var lines = [];
+    allCodes().forEach(function (c) { if (decisionOf(c.code) === 'accepted') { lines.push(c.code + '\t' + c.title); } });
+    return lines.join('\n');
+  }
+  function onCopy() {
+    var text = copyText();
+    var status = $('copy-status');
+    var fb = $('copy-fallback');
+    if (!text) { status.textContent = '수락한 코드가 없습니다.'; return; }
+    function fallback() {
+      fb.hidden = false;
+      fb.value = text;
+      fb.focus();
+      fb.select();
+      status.textContent = '아래 목록을 직접 복사하세요.';
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        fb.hidden = true;
+        status.textContent = '수락한 코드 ' + text.split('\n').length + '개를 복사했습니다.';
+      }, fallback);
+    } else {
+      fallback();
+    }
+  }
+  function onReset() {
+    state.decisions = {};
+    state.added = [];
+    state.openAlt = {};
+    state.active = null;
+    $('copy-status').textContent = '';
+    $('copy-fallback').hidden = true;
+    save();
+    renderAll();
+  }
+
+  function renderAll() {
+    renderStages();
+    renderNote();
+    renderCodes();
+    renderItems();
+    renderCounts();
+  }
+  function loadExample(idx) {
+    state.ex = EXAMPLES[idx];
+    state.active = null;
+    state.decisions = {};
+    state.added = [];
+    state.openAlt = {};
+    load();
+    var ex = state.ex;
+    $('note-title').textContent = ex.title || '노트';
+    $('note-source').textContent = ex.source && ex.source.label ? ex.source.label : '';
+    $('mock-banner').hidden = ex.output_kind !== 'mock';
+    var exButtons = $('example-buttons').querySelectorAll('.ex-btn');
+    for (var bi = 0; bi < exButtons.length; bi++) {
+      exButtons[bi].setAttribute('aria-pressed', Number(exButtons[bi].getAttribute('data-example')) === idx ? 'true' : 'false');
+    }
+    var foot = $('foot');
+    foot.textContent = '';
+    if (ex.source && ex.source.citation) {
+      foot.appendChild(document.createTextNode('노트 출처: ' + ex.source.citation + ' '));
+      if (ex.source.url) {
+        var a = el('a', null, ex.source.url);
+        a.href = ex.source.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        foot.appendChild(a);
+      }
+    }
+    if (ex.catalog) { foot.appendChild(document.createTextNode(' · 코드 제목: ' + ex.catalog)); }
+    $('copy-status').textContent = '';
+    $('copy-fallback').hidden = true;
+    setView('codes');
+    renderAll();
+  }
+
+  function start() {
+    var box = $('example-buttons');
+    EXAMPLES.forEach(function (ex, i) {
+      var b = el('button', 'ex-btn', '예시 ' + (i + 1));
+      b.type = 'button';
+      b.setAttribute('data-example', String(i));
+      b.setAttribute('aria-pressed', 'false');
+      b.addEventListener('click', function () { loadExample(i); });
+      box.appendChild(b);
+    });
+    $('tab-codes').addEventListener('click', function () { setView('codes'); });
+    $('tab-items').addEventListener('click', function () { setView('items'); });
+    $('copy-btn').addEventListener('click', onCopy);
+    $('reset-btn').addEventListener('click', onReset);
+    $('note-body').addEventListener('click', function (e) {
+      var m = e.target && e.target.closest ? e.target.closest('mark.ev') : null;
+      if (m) { onMarkActivate(m); }
+    });
+    $('note-body').addEventListener('keydown', function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.matches && e.target.matches('mark.ev')) {
+        e.preventDefault();
+        onMarkActivate(e.target);
+      }
+    });
+    if (EXAMPLES.length) { loadExample(0); }
+    // 실시간 결과를 같은 화면 코드로 그린다. 이전 결과에 대한 검토 표시는 지운다.
+    window.ICD_REVIEW = { show: function (ex) {
+      try { window.localStorage.removeItem('icd-review:' + ex.id); } catch (e) { /* 저장이 막혀도 동작한다 */ }
+      EXAMPLES.length = 0;
+      EXAMPLES.push(ex);
+      loadExample(0);
+    } };
+  }
+  start();
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+
+  var L = {"locale": "ko-KR", "pageTitle": "ICD 코딩 근거 검토 · 실시간", "h1": "ICD 코딩 근거 검토 · 실시간", "lede": "판독문을 붙여넣으면 모델이 개념과 근거를 추출하고, 후보 코드를 검색하고, 코드를 제안합니다. 결과는 예시 화면과 같은 방식으로 검토합니다.", "back": "예시 화면으로", "examplesLabel": "예시", "example": "예시 {n}", "noteTitle": "판독문 입력", "noteSub": "영문 판독문 한 건 · 예시 1~3은 지어낸 판독문입니다 · 식별 정보가 없는 글만 넣어 주세요", "notePlaceholder": "여기에 판독문을 붙여넣으세요.", "runBtn": "실행", "clearBtn": "지우기", "modeLegend": "실행 방식", "modeFull": "실험과 같은 설정", "modeFullSub": "모델이 추론한 뒤 답합니다 · 보통 2~3분, 길면 5분", "modeFast": "빠르게", "modeFastSub": "추론을 생략합니다 · 수십 초 · 이 방식의 정확도는 확인하지 않았습니다", "privacy": "판독문은 이 브라우저에서 추론 서버로 바로 전송되고, 이 페이지를 올려 둔 호스팅 서비스를 거치지 않습니다. 서버는 판독문과 모델 응답을 파일이나 로그에 남기지 않습니다.", "count": "{n}자 / 최대 {max}자", "sideTitle": "진행 상황", "sideSub": "실행하면 세 단계가 차례로 진행됩니다", "idle": "예시를 고르거나 판독문을 붙여넣고 실행을 누르세요. 끝나면 노트 원문의 근거, 개념별 후보, 제안 코드가 예시 화면과 같은 모양으로 나옵니다.", "newNoteBtn": "새 판독문 입력", "noteTitleResult": "판독문", "resultMeta": "실시간 결과 · 모델 {model} · {s}초 · {reasoning} · 방식 {pipeline}", "metaReasoned": "추론 사용", "metaNoReasoning": "추론 생략", "stageName": {"extract": "1단계 · 개념 추출", "retrieve": "2단계 · 후보 검색", "generate": "3단계 · 코드 선택"}, "stageSub": {"extract": "노트에서 개념과 인용을 뽑습니다", "retrieve": "132개 코드를 노트와 검색어에 비춰 재정렬합니다", "generate": "근거와 후보를 참고해 코드를 고릅니다"}, "stageWaiting": "대기", "stageRunning": "진행 중", "stageDone": "완료 · {s}초", "working": {"extract": "개념과 근거를 추출하는 중", "retrieve": "후보 코드를 검색하는 중", "generate": "코드를 고르는 중"}, "sending": "판독문을 보내는 중", "queued": "대기 중 · 앞에 {n}건", "elapsed": "{s}초 경과", "wait": "이 창을 닫으면 결과를 받을 수 없습니다.", "cancelBtn": "취소", "cancelled": "취소했습니다.", "truncated": "모델 응답이 길이 제한에 닿았습니다. 결과가 불완전할 수 있습니다.", "fastFellBack": "서버의 모델이 추론 생략을 받아들이지 않아 추론을 사용했습니다.", "connChecking": "서버 확인 중", "connOk": "서버 켜짐", "connDown": "서버 꺼짐", "connToken": "서버 켜짐 · 접근 권한 없음", "connOrigin": "서버 켜짐 · 이 페이지는 허용되지 않음", "connNoModel": "서버 켜짐 · 모델 준비 중", "reasonOff": "서버가 꺼져 있어 실행할 수 없습니다.", "reasonToken": "접근 권한이 없습니다. 서버가 알려 준 링크로 다시 열어 주세요.", "reasonOrigin": "서버가 이 페이지 주소를 허용해야 실행할 수 있습니다.", "reasonModel": "모델이 준비되면 실행할 수 있습니다.", "errTitle": "결과를 받지 못했습니다", "errStage": "멈춘 단계: {stage}", "err": {"NETWORK": "서버에 연결할 수 없습니다.", "NOTE_EMPTY": "판독문이 비어 있습니다.", "NOTE_TOO_LONG": "판독문이 너무 깁니다. 최대 {max}자까지 받을 수 있습니다.", "NOTE_TOO_LONG_FOR_RERANK": "판독문이 후보 검색 모델이 받을 수 있는 길이를 넘습니다.", "UNAUTHORIZED": "접근 권한이 없습니다.", "ORIGIN_NOT_ALLOWED": "이 페이지 주소가 서버의 허용 목록에 없습니다.", "QUEUE_FULL": "대기 중인 판독문이 많습니다. 잠시 뒤에 다시 실행해 주세요.", "LLM_UNREACHABLE": "서버는 응답하지만 생성 모델에 연결하지 못했습니다.", "LLM_TIMEOUT": "생성 모델이 제한 시간 안에 답하지 않았습니다.", "LLM_HTTP_ERROR": "생성 모델이 오류를 돌려주었습니다.", "LLM_BAD_RESPONSE": "생성 모델의 응답 형식을 읽지 못했습니다.", "RERANK_UNREACHABLE": "후보 검색 모델에 연결하지 못했습니다.", "RERANK_TIMEOUT": "후보 검색 모델이 제한 시간 안에 답하지 않았습니다.", "RERANK_HTTP_ERROR": "후보 검색 모델이 오류를 돌려주었습니다.", "RERANK_BAD_RESPONSE": "후보 검색 모델의 응답 형식을 읽지 못했습니다.", "EXTRACT_NO_ANSWER": "추출 단계의 응답에 개념 목록이 없었습니다. 다시 실행해 보세요.", "EXTRACT_NO_ANSWER_TRUNCATED": "추출 단계가 길이 제한 안에 답을 끝내지 못했습니다. 판독문을 줄이거나 다시 실행해 보세요.", "NO_ANSWER": "모델 응답에 코드 목록이 없었습니다. 다시 실행해 보세요.", "NO_ANSWER_TRUNCATED": "모델이 길이 제한 안에 답을 끝내지 못했습니다. 판독문을 줄이거나 다시 실행해 보세요.", "JOB_NOT_FOUND": "서버에서 이 작업을 찾을 수 없습니다. 서버가 재시작됐을 수 있습니다.", "INTERNAL": "서버 내부 오류가 났습니다.", "UNKNOWN": "알 수 없는 오류가 났습니다."}, "foot": ""};
+  var SAMPLES = ["CHIEF COMPLAINT\n\nFollow-up of diabetes and high blood pressure.\n\nHISTORY OF PRESENT ILLNESS\n\nThe patient is a 58-year-old woman who returns for a routine follow-up. Her type 2 diabetes has been stable on metformin, with home fasting glucose readings between 110 and 130. She denies numbness or tingling in her feet and has no known kidney or eye complications. Her hypertension is treated with lisinopril, and home blood pressures run around 128/78. For the past two weeks she has had heartburn after meals and at night, without difficulty swallowing, weight loss, or black stools. She also reports three weeks of low back pain that started after gardening, without leg pain, numbness, or weakness.\n\nREVIEW OF SYSTEMS\n\nNegative for chest pain, shortness of breath, and dizziness.\n\nPHYSICAL EXAM\n\nBlood pressure 130/80. Heart with regular rate and rhythm, no murmur. Lungs clear. Abdomen soft and non-tender. Lumbar paraspinal muscles tender on palpation. Straight leg raise negative on both sides.\n\nRESULTS\n\nHemoglobin A1c 6.8%.\n\nASSESSMENT AND PLAN\n\n1. Type 2 diabetes mellitus without complications. Continue metformin 1000 mg twice daily. Repeat A1c in 3 months.\n2. Hypertension. Well controlled. Continue lisinopril 20 mg daily.\n3. Gastroesophageal reflux disease. Start omeprazole 20 mg daily for 8 weeks and avoid late meals.\n4. Low back pain. Likely muscular. Recommend stretching, heat, and ibuprofen as needed.", "CHIEF COMPLAINT\n\nRight knee pain.\n\nHISTORY OF PRESENT ILLNESS\n\nThe patient is a 34-year-old man who presents with right knee pain that began 3 days ago when he twisted the knee while playing soccer. He felt a pop on the inside of the knee and noticed swelling by the evening. He is able to bear weight but has pain with pivoting. He denies locking or giving way. Ibuprofen has given partial relief. He has a history of mild intermittent asthma and uses an albuterol inhaler a few times a year; he has had no recent wheezing.\n\nPHYSICAL EXAM\n\nRight knee: mild effusion. Tenderness over the medial joint line and along the medial collateral ligament. Pain and mild laxity with valgus stress at 30 degrees. Lachman and anterior drawer negative. McMurray negative. Neurovascularly intact distally.\nLungs: clear to auscultation bilaterally, no wheezes.\n\nRESULTS\n\nX-ray of the right knee, 3 views: no fracture or dislocation.\n\nASSESSMENT AND PLAN\n\n1. Sprain of the medial collateral ligament of the right knee, initial visit. Hinged knee brace for 4 weeks, ice, elevation, and ibuprofen 600 mg three times daily with food. Referral to physical therapy. Return in 4 weeks; MRI if not improving.\n2. Mild intermittent asthma, stable. Continue albuterol as needed.", "CHIEF COMPLAINT\n\nShortness of breath and leg swelling.\n\nHISTORY OF PRESENT ILLNESS\n\nThe patient is a 71-year-old woman with a history of atrial fibrillation, hyperlipidemia, and hypothyroidism who presents with 2 weeks of shortness of breath on exertion and swelling of both ankles. She sleeps on two pillows. She denies chest pain, palpitations, fever, or cough. She has been eating more salty food and missed several doses of her diuretic. She takes apixaban, metoprolol, atorvastatin, levothyroxine, and furosemide.\n\nPHYSICAL EXAM\n\nBlood pressure 138/84, heart rate 88 and irregularly irregular, oxygen saturation 95% on room air. Neck: jugular venous distention to 8 cm. Lungs: fine crackles at both bases. Heart: irregular rhythm, no murmur. Extremities: 2+ pitting edema of both ankles.\n\nRESULTS\n\nECG: atrial fibrillation with controlled ventricular rate. Chest X-ray: mild pulmonary vascular congestion. TSH within normal limits.\n\nASSESSMENT AND PLAN\n\n1. Heart failure with fluid overload. Increase furosemide to 40 mg twice daily for 5 days, then 40 mg daily. Low-salt diet and daily weights. Echocardiogram ordered.\n2. Atrial fibrillation, rate controlled. Continue metoprolol and apixaban.\n3. Hyperlipidemia. Continue atorvastatin.\n4. Hypothyroidism, TSH at goal. Continue levothyroxine."];
 
   function fill(text, vars) {
     return String(text).replace(/\{(\w+)\}/g, function (m, k) { return vars && vars[k] !== undefined ? vars[k] : m; });
@@ -433,7 +830,7 @@ textarea#note {
     if (text !== undefined) node.textContent = text;
     return node;
   }
-  function num(n) { return Number(n).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US'); }
+  function num(n) { return Number(n).toLocaleString(L.locale); }
 
   // ---- 저장: 접근 토큰, 서버 포트, 고른 실행 방식만. 판독문은 어디에도 저장하지 않는다.
   var KEY_API = 'icdDemo.apiBase', KEY_TOKEN = 'icdDemo.token', KEY_MODE = 'icdDemo.mode';
@@ -442,8 +839,8 @@ textarea#note {
     try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (e) { /* 저장이 막혀도 동작한다 */ }
   }
   var mem = { api: load(KEY_API), token: load(KEY_TOKEN), mode: load(KEY_MODE) };
-  // 토큰과 서버 주소는 화면에서 입력받지 않는다. 서버가 알려 준 링크(#token=...)로 한 번 열면 이 브라우저에
-  // 저장하고 주소창에서는 바로 지운다. 주소는 이 컴퓨터 안(127.0.0.1, localhost)만 받는다: 누가 만든 링크로
+  // 서버가 토큰을 쓰도록 설정된 경우에만, 서버가 알려 준 링크(#token=...)로 한 번 열면 이 브라우저에 저장하고
+  // 주소창에서는 바로 지운다. 주소는 이 컴퓨터 안(127.0.0.1, localhost)만 받는다: 누가 만든 링크로
   // 판독문이 다른 서버로 가는 일을 막기 위해서다. #reset 은 저장한 값을 지운다.
   (function readLink() {
     var hash = location.hash.replace(/^#/, '');
@@ -479,20 +876,22 @@ textarea#note {
     });
   }
 
-  // ---- 화면 글자
-  document.documentElement.lang = lang;
-  document.title = L.pageTitle;
-  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n]'), function (node) { node.textContent = L[node.getAttribute('data-i18n')]; });
-  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n-ph]'), function (node) { node.placeholder = L[node.getAttribute('data-i18n-ph')]; });
-  Array.prototype.forEach.call(document.querySelectorAll('[data-i18n-label]'), function (node) { node.setAttribute('aria-label', L[node.getAttribute('data-i18n-label')]); });
-  Array.prototype.forEach.call(document.querySelectorAll('.lang-opt'), function (node) {
-    if (node.getAttribute('data-lang') === lang) node.setAttribute('aria-current', 'true');
-  });
-  $('back-link').href = lang === 'en' ? '/index_en.html' : '/';
+  var noteEl = $('live-note'), runBtn = $('run-btn'), sideEl = $('live-side-body'), countEl = $('count');
+  var maxChars = 20000;
+  var busy = false, runSeq = 0, jobId = null, startedAt = 0, tick = null, pollTimer = null, runMode = 'full';
+  var stageNames = ['extract', 'retrieve', 'generate'], stageStart = {}, stageDone = {}, stageNow = null;
 
-  var noteEl = $('note'), runBtn = $('run-btn'), resultEl = $('result'), countEl = $('count');
-  var maxChars = 60000;
-  var busy = false, runSeq = 0, jobId = null, startedAt = 0, tick = null, pollTimer = null, runMode = 'fast';
+  // ---- 화면 전환: 입력(판독문 입력 + 진행 상황) / 결과(노트 원문 + 코드 검토)
+  var notePanel = document.querySelector('.note-panel'), reviewPanel = document.querySelector('.review-panel');
+  function setScreen(name) {
+    var result = name === 'result';
+    $('input-panel').hidden = result;
+    $('live-side').hidden = result;
+    notePanel.hidden = !result;
+    reviewPanel.hidden = !result;
+  }
+
+  // ---- 예시 1~3: 지어낸 판독문을 입력창에 넣는다
   var exampleButtons = SAMPLES.map(function (text, i) {
     var b = el('button', 'ex-btn', fill(L.example, { n: i + 1 }));
     b.type = 'button';
@@ -502,23 +901,25 @@ textarea#note {
       if (busy) return;
       noteEl.value = text;
       markExample(i);
-      updateCount();
+      setScreen('input');
+      paintStages();
       showIdle();
+      updateCount();
     });
-    $('ex-buttons').appendChild(b);
+    $('live-examples').appendChild(b);
     return b;
   });
   function markExample(which) {
     exampleButtons.forEach(function (b, i) { b.setAttribute('aria-pressed', i === which ? 'true' : 'false'); });
   }
+
+  // ---- 실행 방식
   var modeInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="mode"]'));
   function currentMode() {
     for (var i = 0; i < modeInputs.length; i++) if (modeInputs[i].checked) return modeInputs[i].value;
-    return 'fast';
+    return 'full';
   }
-  function setMode(value) {
-    modeInputs.forEach(function (input) { input.checked = input.value === value; });
-  }
+  function setMode(value) { modeInputs.forEach(function (input) { input.checked = input.value === value; }); }
   function showModeNote() { $('mode-sub').textContent = currentMode() === 'fast' ? L.modeFastSub : L.modeFullSub; }
   if (mem.mode === 'fast' || mem.mode === 'full') setMode(mem.mode);
   showModeNote();
@@ -527,7 +928,7 @@ textarea#note {
     input.addEventListener('change', function () { mem.mode = currentMode(); save(KEY_MODE, mem.mode); showModeNote(); });
   });
 
-  // ---- 연결 상태: checking | ok | off(꺼짐·연결 안 됨) | token | origin | model(모델 준비 안 됨)
+  // ---- 서버 상태: 맨 아래 한 줄. checking | ok | off | token | origin | model(모델 준비 중)
   var conn = 'checking', recheckTimer = null, healthSeq = 0;
   var CONN = {
     checking: ['connChecking', ''], ok: ['connOk', 'ok'], off: ['connDown', 'no'],
@@ -545,7 +946,7 @@ textarea#note {
   }
   function scheduleRecheck() {
     if (recheckTimer) clearTimeout(recheckTimer);
-    // 꺼져 있으면 10초마다, 연결돼 있으면 30초마다 다시 확인해서 켜짐·꺼짐을 바로 보여 준다.
+    // 꺼져 있으면 10초마다, 켜져 있으면 30초마다 다시 확인해서 켜짐·꺼짐을 바로 보여 준다.
     recheckTimer = setTimeout(function () {
       if (document.hidden || busy) { scheduleRecheck(); return; }
       checkHealth(true);
@@ -561,8 +962,14 @@ textarea#note {
       if (!r.ok || !d.ok) { setConn('off'); return; }
       if (!d.authorized) { setConn('token'); return; }
       if (d.max_note_chars) maxChars = d.max_note_chars;
+      if (Array.isArray(d.stages) && d.stages.length && !busy) {
+        var changed = d.stages.join() !== stageNames.join();
+        stageNames = d.stages;
+        if (changed && !$('input-panel').hidden) paintStages();
+      }
       if (!mem.mode && !busy && (d.default_mode === 'fast' || d.default_mode === 'full')) { setMode(d.default_mode); showModeNote(); }
-      setConn(d.llm_ready ? 'ok' : 'model');
+      var ready = d.ready !== undefined ? d.ready : d.llm_ready;
+      setConn(ready ? 'ok' : 'model');
     }, function () {
       if (seq === healthSeq) setConn('off');
     }).then(function () {
@@ -578,11 +985,35 @@ textarea#note {
     runBtn.disabled = busy || !noteEl.value.trim() || n > maxChars || conn !== 'ok';
   }
 
-  // ---- 결과 영역
-  function clearResult() { while (resultEl.firstChild) resultEl.removeChild(resultEl.firstChild); }
+  // ---- 단계 띠: 실행 중에는 진행 상황을, 결과가 오면 검토 화면이 실제 수치를 채운다
+  function paintStages() {
+    var ol = $('stages');
+    ol.textContent = '';
+    stageNames.forEach(function (name) {
+      var li = el('li', 'stage' + (name === stageNow ? ' running' : ''));
+      li.setAttribute('data-stage', name);
+      li.appendChild(el('span', 'stage-name', L.stageName[name] || name));
+      var state = stageDone[name] !== undefined ? fill(L.stageDone, { s: stageDone[name] }) : (name === stageNow ? L.stageRunning : L.stageWaiting);
+      li.appendChild(el('span', 'stage-main', state));
+      li.appendChild(el('span', 'stage-sub', L.stageSub[name] || ''));
+      ol.appendChild(li);
+    });
+  }
+  function enterStage(name) {
+    if (name === stageNow) return;
+    var now = Date.now();
+    if (stageNow) stageDone[stageNow] = Math.max(1, Math.round((now - stageStart[stageNow]) / 1000));
+    stageNow = name;
+    if (name) stageStart[name] = now;
+    paintStages();
+  }
+  function resetStages() { stageStart = {}; stageDone = {}; stageNow = null; paintStages(); }
+
+  // ---- 진행 상황 칸
+  function clearSide() { while (sideEl.firstChild) sideEl.removeChild(sideEl.firstChild); }
   function showIdle(text) {
-    clearResult();
-    resultEl.appendChild(el('p', 'empty', text || L.idle));
+    clearSide();
+    sideEl.appendChild(el('p', 'empty', text || L.idle));
   }
   function stopTimers() {
     if (tick) { clearInterval(tick); tick = null; }
@@ -590,7 +1021,7 @@ textarea#note {
   }
   function setBusy(on) {
     busy = on;
-    resultEl.setAttribute('aria-busy', on ? 'true' : 'false');
+    sideEl.setAttribute('aria-busy', on ? 'true' : 'false');
     noteEl.readOnly = on;
     exampleButtons.forEach(function (b) { b.disabled = on; });
     $('clear-btn').disabled = on;
@@ -600,7 +1031,7 @@ textarea#note {
   function showWorking(stageText) {
     var line = $('working-stage');
     if (line) { line.textContent = stageText; return; }
-    clearResult();
+    clearSide();
     var box = el('div', 'working');
     var row = el('div', 'working-line');
     row.appendChild(el('span', 'spinner'));
@@ -611,7 +1042,7 @@ textarea#note {
     elapsed.id = 'working-elapsed';
     row.appendChild(elapsed);
     box.appendChild(row);
-    box.appendChild(el('p', 'note', runMode === 'fast' ? L.waitFast : L.wait));
+    box.appendChild(el('p', 'note', (runMode === 'fast' ? L.modeFastSub : L.modeFullSub) + ' · ' + L.wait));
     var actions = el('div', 'row');
     var cancel = el('button', 'btn', L.cancelBtn);
     cancel.type = 'button';
@@ -619,7 +1050,7 @@ textarea#note {
     cancel.addEventListener('click', cancelRun);
     actions.appendChild(cancel);
     box.appendChild(actions);
-    resultEl.appendChild(box);
+    sideEl.appendChild(box);
   }
   function showElapsed() {
     var node = $('working-elapsed');
@@ -628,46 +1059,38 @@ textarea#note {
   function showError(code, serverMessage, more) {
     stopTimers();
     setBusy(false);
-    clearResult();
+    var stopped = (more && more.stage) || stageNow;
+    stageNow = null;
+    paintStages();
+    setScreen('input');
+    clearSide();
     var box = el('div', 'alert');
     box.setAttribute('role', 'alert');
     box.appendChild(el('strong', '', L.errTitle));
     var text = L.err[code] ? fill(L.err[code], { max: num((more && more.max_note_chars) || maxChars) }) : (serverMessage || L.err.UNKNOWN);
     box.appendChild(el('span', '', text));
-    if (L.hint[code]) box.appendChild(el('span', 'hint', L.hint[code]));
-    resultEl.appendChild(box);
-    if (code === 'NETWORK' || code === 'UNAUTHORIZED' || code === 'ORIGIN_NOT_ALLOWED' || code === 'LLM_UNREACHABLE' || code === 'JOB_NOT_FOUND') checkHealth(true);
+    if (stopped && L.stageName[stopped]) box.appendChild(el('span', 'hint', fill(L.errStage, { stage: L.stageName[stopped] })));
+    sideEl.appendChild(box);
+    if (code === 'NETWORK' || code === 'UNAUTHORIZED' || code === 'ORIGIN_NOT_ALLOWED' || /_UNREACHABLE$/.test(code) || code === 'JOB_NOT_FOUND') checkHealth(true);
   }
   function showResult(result) {
     stopTimers();
     setBusy(false);
-    clearResult();
-    var codes = result.codes || [];
-    var head = el('div', 'result-head');
-    head.appendChild(el('b', '', codes.length ? fill(L.resultCount, { n: codes.length }) : L.resultNone));
-    resultEl.appendChild(head);
-    if (result.truncated) resultEl.appendChild(el('p', 'warnbox', L.truncated));
-    if (codes.length) {
-      var list = el('ol', 'codes');
-      list.id = 'code-list';
-      codes.forEach(function (row) {
-        var item = el('li', 'code-row' + (row.in_label_list ? '' : ' outside'));
-        item.appendChild(el('span', 'code', row.code));
-        if (row.title) {
-          item.appendChild(el('span', 'code-title', row.title));
-        } else {
-          item.appendChild(el('span', 'code-title missing', L.noTitle));
-          item.appendChild(el('span', 'chip warn', L.outside));
-        }
-        list.appendChild(item);
-      });
-      resultEl.appendChild(list);
-    }
-    if (result.mode === 'fast' && result.reasoning_used) resultEl.appendChild(el('p', 'warnbox', L.fastFellBack));
-    resultEl.appendChild(el('p', 'result-meta', fill(L.resultMeta, {
+    stageNow = null;
+    // 기존 예시 화면과 같은 코드가 결과를 그린다.
+    window.ICD_REVIEW.show(result.example);
+    $('note-title').textContent = L.noteTitleResult;
+    $('note-source').textContent = fill(L.resultMeta, {
       model: result.model, s: result.elapsed_s, pipeline: result.pipeline,
       reasoning: result.reasoning_used ? L.metaReasoned : L.metaNoReasoning
-    })));
+    });
+    var notice = $('live-notice');
+    var lines = [];
+    if (result.truncated) lines.push(L.truncated);
+    if (result.mode === 'fast' && result.reasoning_used) lines.push(L.fastFellBack);
+    notice.textContent = lines.join(' ');
+    notice.hidden = !lines.length;
+    setScreen('result');
   }
 
   // ---- 실행
@@ -681,6 +1104,8 @@ textarea#note {
     jobId = null;
     startedAt = Date.now();
     runMode = currentMode();
+    $('live-notice').hidden = true;
+    resetStages();
     setBusy(true);
     showWorking(L.sending);
     tick = setInterval(showElapsed, 500);
@@ -697,8 +1122,13 @@ textarea#note {
       if (seq !== runSeq) return;
       if (!r.ok) { failFrom(r); return; }
       var status = r.data.status;
-      if (status === 'queued' || status === 'running') {
-        showWorking(status === 'queued' ? fill(L.queued, { n: r.data.ahead || 0 }) : (runMode === 'fast' ? L.runningFast : L.running));
+      if (status === 'queued') {
+        showWorking(fill(L.queued, { n: r.data.ahead || 0 }));
+        pollTimer = setTimeout(function () { poll(seq, 0); }, 1000);
+      } else if (status === 'running') {
+        var stage = r.data.stage || stageNames[stageNames.length - 1];
+        enterStage(stage);
+        showWorking((stageNames.indexOf(stage) + 1) + '/' + stageNames.length + ' ' + (L.working[stage] || stage));
         pollTimer = setTimeout(function () { poll(seq, 0); }, Date.now() - startedAt > 30000 ? 2000 : 1000);
       } else if (status === 'done') {
         showResult(r.data.result || {});
@@ -718,23 +1148,28 @@ textarea#note {
     jobId = null;
     stopTimers();
     setBusy(false);
+    resetStages();
     showIdle(L.cancelled);
     if (id) api('DELETE', '/api/jobs/' + encodeURIComponent(id), undefined, 8000).catch(function () {});
   }
 
   document.addEventListener('visibilitychange', function () { if (!document.hidden && !busy) checkHealth(true); });
-
   noteEl.addEventListener('input', function () { markExample(-1); updateCount(); });
   noteEl.addEventListener('keydown', function (ev) {
     if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); run(); }
   });
   runBtn.addEventListener('click', run);
   $('clear-btn').addEventListener('click', function () { noteEl.value = ''; markExample(-1); updateCount(); showIdle(); noteEl.focus(); });
+  $('new-note-btn').addEventListener('click', function () { setScreen('input'); resetStages(); showIdle(); noteEl.focus(); });
 
+  setScreen('input');
+  resetStages();
   updateCount();
   showIdle();
   checkHealth();
 })();
 </script>
+
+
 </body>
 </html>

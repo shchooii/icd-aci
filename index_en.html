@@ -170,9 +170,9 @@ mark.ev.on { background: var(--mark-on); }
     <div class="top-row">
       <h1>ICD Coding Evidence Review</h1>
       <div class="top-tools">
-        <div class="ex-pick" role="group" aria-label="Example note"><span>Example note</span><span class="ex-buttons" id="example-buttons"></span></div>
+        <div class="ex-pick" role="group" aria-label="Example note"><span class="ex-buttons" id="example-buttons"></span></div>
         <span class="divider" aria-hidden="true"></span>
-        <a class="live-link" href="/demo?lang=en">Live demo</a>
+        <a class="live-link" href="/demo_en.html">Live demo</a>
         <span class="divider" aria-hidden="true"></span>
         <nav class="lang-switch" aria-label="Language">
           <a class="lang-opt" href="/" hreflang="ko" lang="ko">한국어</a>
@@ -703,9 +703,7 @@ mark.ev.on { background: var(--mark-on); }
       return;
     }
     EXAMPLES.forEach(function (ex, i) {
-      // the name in parentheses in the title labels the button
-      var m = /\(([^)]+)\)/.exec(ex.title || '');
-      var b = el('button', 'ex-btn', m ? m[1] : (ex.title || ex.id));
+      var b = el('button', 'ex-btn', 'Example ' + (i + 1));
       b.type = 'button';
       b.setAttribute('data-example', String(i));
       b.setAttribute('aria-pressed', 'false');
